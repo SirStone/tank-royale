@@ -1,4 +1,3 @@
-nim
 import bot_state
 import i_event
 

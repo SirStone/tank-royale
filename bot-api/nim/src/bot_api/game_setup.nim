@@ -1,4 +1,3 @@
-nim
 import json
 
 type

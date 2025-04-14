@@ -1,4 +1,3 @@
-nim
 import bot_info
 import json_util
 

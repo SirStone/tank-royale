@@ -1,4 +1,3 @@
-nim
 import ./event_handler
 import ../events/i_event
 import ../events/bot_event

@@ -1,8 +1,7 @@
-nim
 import bot_api/base_bot, bot_api/i_base_bot, bot_api/bot_info, bot_api/events/i_event, bot_api/events/tick_event,
     bot_api/events/game_started_event, bot_api/events/game_ended_event, bot_api/events/round_ended_event,
     bot_api/events/round_started_event, bot_api/events/bot_event, bot_api/events/death_event,
-    bot_api/events/connected_event, bot_api/events/disconnected_event, bot_api/events/custom_event,
+    bot_api/events/connected_event, bot_api/events/disconnected_event, bot_api/events/custom_event, 
     bot_api/events/connection_error_event
 
 type

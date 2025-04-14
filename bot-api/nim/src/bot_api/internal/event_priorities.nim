@@ -1,4 +1,3 @@
-nim
 import ./default_event_priority, std/tables
 
 type

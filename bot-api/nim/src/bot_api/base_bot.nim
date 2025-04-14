@@ -1,4 +1,3 @@
-nim
 import os
 import json
 import strutils

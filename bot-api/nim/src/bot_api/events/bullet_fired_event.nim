@@ -1,4 +1,3 @@
-nim
 import bot_api/bullet_state
 import bot_api/events/bot_event
 import bot_api/droid

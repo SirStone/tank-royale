@@ -1,4 +1,3 @@
-nim
 import ./event_priorities, ./event_queue
 import ../bot, ../base_bot
 import ../events/i_event, ./event_handler

@@ -1,4 +1,3 @@
-nim
 import ../bot_event, ../bot_info
 import ./i_event
 

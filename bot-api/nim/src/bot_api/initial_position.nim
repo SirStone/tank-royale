@@ -1,4 +1,3 @@
-nim
 import options
 
 type

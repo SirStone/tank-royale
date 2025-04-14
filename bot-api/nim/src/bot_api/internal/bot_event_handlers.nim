@@ -1,4 +1,3 @@
-nim
 import std/[tables, sequtils, strutils, locks]
 import ./i_event, ../bot, ./event_priorities, ./event_interruption
 

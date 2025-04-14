@@ -1,4 +1,3 @@
-nim
 import times
 
 type

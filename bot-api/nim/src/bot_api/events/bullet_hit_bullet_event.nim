@@ -1,4 +1,3 @@
-nim
 import ./bot_event
 import ../bullet_state
 

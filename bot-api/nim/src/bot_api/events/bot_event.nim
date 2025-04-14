@@ -1,4 +1,3 @@
-nim
 import times
 import ../default_event_priority
 import ../internal/event_priorities

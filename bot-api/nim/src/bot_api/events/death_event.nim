@@ -1,4 +1,4 @@
-nim
+
 import ./bot_event, ../bot_info
 
 type

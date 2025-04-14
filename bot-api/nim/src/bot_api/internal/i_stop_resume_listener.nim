@@ -1,6 +1,3 @@
-nim
-
-
 type
   IStopResumeListener* = interface
     ## Interface for stop/resume listener.

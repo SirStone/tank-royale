@@ -1,4 +1,3 @@
-nim
 import bot_api/bot_state, bot_api/droid, bot_api/internal/bot_internals, bot_api/internal/graphics_state
 
 proc map*(source: BotInternals): BotState =

@@ -1,4 +1,3 @@
-nim
 import ./game_setup
 import ./bot_info
 import ./bot_state

@@ -1,4 +1,3 @@
-nim
 import ./condition
 import ../../bot_api/internal/base_bot_internals
 

@@ -1,4 +1,3 @@
-nim
 import bot_api/base_bot
 import json
 import times

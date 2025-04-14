@@ -1,4 +1,3 @@
-nim
 import bot_api/events/event_abc, bot_api/events/condition
 
 type

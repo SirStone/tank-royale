@@ -1,4 +1,3 @@
-nim
 import ./i_event, ../bullet_state
 
 type

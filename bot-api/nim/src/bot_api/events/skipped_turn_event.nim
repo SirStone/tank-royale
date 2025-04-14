@@ -1,4 +1,3 @@
-nim
 import ./i_event
 
 type

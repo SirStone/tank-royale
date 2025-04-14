@@ -1,4 +1,3 @@
-nim
 import std/tables
 import std/locks
 import bot_api/events/tick_event

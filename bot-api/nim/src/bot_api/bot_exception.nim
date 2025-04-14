@@ -1,4 +1,3 @@
-nim
 import strutils
 
 type

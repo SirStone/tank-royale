@@ -1,4 +1,3 @@
-nim
 import ./event_abc, ../bot_results
 
 type

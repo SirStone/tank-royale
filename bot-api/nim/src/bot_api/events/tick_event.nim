@@ -1,4 +1,4 @@
-nim
+
 import ../bot_state, ../bullet_state, i_event, ../../util/collection_util
 
 type

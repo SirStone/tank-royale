@@ -1,4 +1,3 @@
-nim
 import ./i_event, ../../bot_api/bot_state
 import ../constants
 

@@ -1,4 +1,3 @@
-nim
 import bot_api/events/i_event, bot_api/game_setup
 
 type

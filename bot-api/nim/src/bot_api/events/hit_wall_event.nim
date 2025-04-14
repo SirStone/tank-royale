@@ -1,4 +1,3 @@
-nim
 import bot_api/events/bot_event
 
 type

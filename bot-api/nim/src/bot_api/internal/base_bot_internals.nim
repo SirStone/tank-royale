@@ -1,5 +1,4 @@
-nim
-import bot_api/i_base_bot, bot_api/events/i_event, bot_api/bot_state,
+import bot_api/i_base_bot, bot_api/default_event_priority, bot_api/events/i_event, bot_api/bot_state,
        bot_api/events/i_event, bot_api/internal/event_queue,
        bot_api/internal/event_handler, bot_api/internal/event_priorities
 

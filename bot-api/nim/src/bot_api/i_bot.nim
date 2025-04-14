@@ -1,4 +1,3 @@
-nim
 import ./bot_state
 import ./bullet_state
 import ./game_setup
