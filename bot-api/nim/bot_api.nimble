@@ -1,5 +1,7 @@
+nim
 # Package
 
+name          = "bot_api"
 version       = "1.0.0"
 author        = "AI Generated"
 description   = "Bot-API in Nim (AI Generated)"
@@ -12,11 +14,10 @@ srcDir        = "src"
 requires "nim >= 1.6.0"
 
 # Sources
-bin           = @["bot-api"]
 
-# Tasks
+bin           = @["bot_api"]
+
+# Tests
+
 testfiles     = @["tests"]
-
-# Dependencies
-
 requires "unittest2 >= 0.1.0"
