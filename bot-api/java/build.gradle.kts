@@ -17,7 +17,7 @@ base {
 plugins {
     `java-library`
     alias(libs.plugins.jsonschema2pojo)
-    alias(libs.plugins.shadow.jar)
+    alias(libs.plugins.shadow)
     `maven-publish`
     signing
 }
@@ -26,8 +26,6 @@ dependencies {
     implementation(libs.gson)
     implementation(libs.gson.extras)
     implementation(libs.nv.i18n)
-    implementation(libs.batik.svggen)
-    implementation(libs.batik.dom)
 
     testImplementation(testLibs.bundles.junit)
     testImplementation(testLibs.assertj)
@@ -37,7 +35,7 @@ dependencies {
 
 java {
     toolchain {
-        languageVersion.set(JavaLanguageVersion.of(11))
+        languageVersion = JavaLanguageVersion.of(11)
     }
 
     withJavadocJar()
@@ -87,7 +85,7 @@ tasks {
             attributes["Package"] = project.group
         }
         minimize()
-        archiveClassifier.set("")
+        archiveClassifier = ""
     }
 
     javadoc {
@@ -98,9 +96,14 @@ tasks {
             memberLevel = JavadocMemberLevel.PROTECTED
             overview = layout.projectDirectory.file("src/main/javadoc/overview.html").asFile.path
 
+            charSet = "UTF-8"
+            encoding = "UTF-8"
+            docEncoding = "UTF-8"
+
             addFileOption("-add-stylesheet", layout.projectDirectory.file("src/main/javadoc/themes/prism.css").asFile)
             addBooleanOption("-allow-script-in-comments", true)
             addStringOption("Xdoclint:none", "-quiet")
+            addStringOption("noqualifier", "all")
         }
         exclude(
             "**/dev/robocode/tankroyale/schema/**",
@@ -115,7 +118,7 @@ tasks {
         }
     }
 
-    val uploadDocs by registering(Copy::class) {
+    register<Copy>("copyJavaApiDocs") {
         dependsOn(javadoc)
 
         val javadocDir = layout.projectDirectory.dir("../../docs/api/java")
@@ -127,6 +130,15 @@ tasks {
 
         from(layout.buildDirectory.dir("docs/javadoc"))
         into(javadocDir)
+    }
+
+    // Make sure documentation tasks are not part of the build task
+    afterEvaluate {
+        tasks.named("build").configure {
+            setDependsOn(dependsOn.filterNot {
+                it.toString().contains("javadoc") || it.toString().contains("copyJavaApiDocs")
+            })
+        }
     }
 
     val javadocJar = named("javadocJar")
@@ -151,28 +163,29 @@ tasks {
                 version
 
                 pom {
-                    name.set(javadocTitle)
-                    description.set(project.description)
-                    url.set("https://github.com/robocode-dev/tank-royale")
+                    name = javadocTitle
+                    description = project.description
+                    url = "https://github.com/robocode-dev/tank-royale"
 
                     licenses {
                         license {
-                            name.set("The Apache License, Version 2.0")
-                            url.set("https://www.apache.org/licenses/LICENSE-2.0.txt")
+                            name = "The Apache License, Version 2.0"
+                            url = "https://www.apache.org/licenses/LICENSE-2.0.txt"
                         }
                     }
                     developers {
                         developer {
-                            id.set("fnl")
-                            name.set("Flemming Nørnberg Larsen")
-                            organization.set("flemming-n-larsen")
-                            organizationUrl.set("https://github.com/flemming-n-larsen")
+                            id = "fnl"
+                            name = "Flemming Nørnberg Larsen"
+                            url = "https://github.com/flemming-n-larsen"
+                            organization = "robocode.dev"
+                            organizationUrl = "https://robocode-dev.github.io/tank-royale/"
                         }
                     }
                     scm {
-                        connection.set("scm:git:git://github.com/robocode-dev/tank-royale.git")
-                        developerConnection.set("scm:git:ssh://github.com:robocode-dev/tank-royale.git")
-                        url.set("https://github.com/robocode-dev/tank-royale/tree/master")
+                        connection = "scm:git:git://github.com/robocode-dev/tank-royale.git"
+                        developerConnection = "scm:git:ssh://github.com:robocode-dev/tank-royale.git"
+                        url = "https://github.com/robocode-dev/tank-royale/tree/master"
                     }
                 }
             }

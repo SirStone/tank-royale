@@ -1,32 +1,15 @@
-from robocode_tank_royale.bot_api.bot_results import BotResults
-from robocode_tank_royale.bot_api.events.abstract_event import IEvent
+from ..bot_results import BotResults
+from .event_abc import EventABC
 
 
-class GameEndedEvent(IEvent):
-    """Event occurring when game has just ended."""
+class GameEndedEvent(EventABC):
+    """
+    Event triggered when the game ends.
 
-    def __init__(self, number_of_rounds: int, results: BotResults):
-        """Initializes a new instance of the GameEndedEvent class.
+    Attributes:
+        number_of_rounds (int): The total number of rounds played in the game.
+        results (BotResults): The results of the battle for this bot, containing detailed scores and performance metrics.
+    """
 
-        Args:
-            number_of_rounds: The number of rounds played.
-            results: The bot results of the battle.
-        """
-        self.number_of_rounds = number_of_rounds
-        self.results = results
-
-    def get_number_of_rounds(self) -> int:
-        """Returns the number of rounds played.
-
-        Returns:
-            The number of rounds played.
-        """
-        return self.number_of_rounds
-
-    def get_results(self) -> BotResults:
-        """Returns the results of the battle.
-
-        Returns:
-            The results of the battle.
-        """
-        return self.results
+    number_of_rounds: int
+    results: BotResults

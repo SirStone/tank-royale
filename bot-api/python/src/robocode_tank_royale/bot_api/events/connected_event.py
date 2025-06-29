@@ -1,5 +1,11 @@
-from robocode_tank_royale.bot_api.events.connection_event import ConnectionEvent
+from dataclasses import dataclass
 
+from .connection_event import ConnectionEvent
+
+
+@dataclass(frozen=True, repr=True)
 class ConnectedEvent(ConnectionEvent):
-    """Event occurring when bot gets connected to server"""
+    """
+    Event occurring when bot gets connected to server
+    """
     pass

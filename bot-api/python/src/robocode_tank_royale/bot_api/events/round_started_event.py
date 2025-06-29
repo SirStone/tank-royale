@@ -1,21 +1,15 @@
-from robocode_tank_royale.bot_api.events.abstract_event import IEvent
+from dataclasses import dataclass
+
+from .event_abc import EventABC
 
 
-class RoundStartedEvent(IEvent):
-    """Event occurring when a new round has just started."""
+@dataclass(frozen=True, repr=True)
+class RoundStartedEvent(EventABC):
+    """
+    Represents an event that occurs when a new round has started.
 
-    def __init__(self, round_number: int):
-        """Initializes a new instance of the RoundStartedEvent class.
+    Attributes:
+        round_number (int): The number of the current round.
+    """
 
-        Args:
-            round_number: The round number.
-        """
-        self.round_number = round_number
-
-    def get_round_number(self) -> int:
-        """Returns the round number.
-
-        Returns:
-            The round number.
-        """
-        return self.round_number
+    round_number: int

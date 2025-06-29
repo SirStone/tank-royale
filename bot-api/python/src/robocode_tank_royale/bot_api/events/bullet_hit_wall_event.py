@@ -1,24 +1,20 @@
-from robocode_tank_royale.bot_api.bullet_state import BulletState
-from robocode_tank_royale.bot_api.events.bot_event import BotEvent
+from dataclasses import dataclass
+
+from ..bullet_state import BulletState
+from .bot_event import BotEvent
 
 
+@dataclass(frozen=True, repr=True)
 class BulletHitWallEvent(BotEvent):
-    """Event occurring when a bullet has hit a wall."""
+    """
+    Represents an event that occurs when a bullet hits a wall during a game.
 
-    def __init__(self, turn_number: int, bullet: BulletState):
-        """Initializes a new instance of the BulletHitWallEvent class.
+    This event provides information about which bullet hit the wall and at
+    what turn the event occurred.
 
-        Args:
-            turn_number: The turn number when the bullet has hit a wall.
-            bullet: The bullet that has hit a wall.
-        """
-        super().__init__(turn_number)
-        self.bullet = bullet
+    Attributes:
+        bullet (BulletState): The bullet that hit the wall.
 
-    def get_bullet(self) -> BulletState:
-        """Returns the bullet that has hit a wall.
+    """
 
-        Returns:
-            The bullet that has hit a wall.
-        """
-        return self.bullet
+    bullet: BulletState

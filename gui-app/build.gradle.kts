@@ -28,12 +28,13 @@ plugins {
     java
     alias(libs.plugins.kotlin.jvm)
     alias(libs.plugins.kotlin.serialization)
-    alias(libs.plugins.shadow.jar)
+    alias(libs.plugins.shadow)
     `maven-publish`
     signing
 }
 
 dependencies {
+    implementation(project(":lib:client"))
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.miglayout.swing)
     implementation(libs.jsvg)
@@ -119,7 +120,7 @@ tasks {
         }
     }
 
-    val runJar by registering(JavaExec::class) {
+    register("runJar", JavaExec::class) {
         dependsOn(proguard)
         classpath = files(proguard.get().outJarFiles)
     }
@@ -127,6 +128,10 @@ tasks {
     jar {
         enabled = false
         dependsOn(proguard)
+    }
+
+    test {
+        useJUnitPlatform()
     }
 
     withType<AbstractPublishToMaven> {
@@ -173,10 +178,11 @@ tasks {
                     }
                     developers {
                         developer {
-                            id.set("fnl")
-                            name.set("Flemming Nørnberg Larsen")
-                            organization.set("flemming-n-larsen")
-                            organizationUrl.set("https://github.com/flemming-n-larsen")
+                            id = "fnl"
+                            name = "Flemming Nørnberg Larsen"
+                            url = "https://github.com/flemming-n-larsen"
+                            organization = "robocode.dev"
+                            organizationUrl = "https://robocode-dev.github.io/tank-royale/"
                         }
                     }
                     scm {

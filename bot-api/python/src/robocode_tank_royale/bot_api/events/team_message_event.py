@@ -1,40 +1,18 @@
+from dataclasses import dataclass
 from typing import Any
+from .bot_event import BotEvent
 
-from robocode_tank_royale.bot_api.events.bot_event import BotEvent
 
-
+@dataclass(frozen=True, repr=True)
 class TeamMessageEvent(BotEvent):
-    """Event occurring when a bot has received a message from a teammate."""
+    """
+    Represents an event triggered when a bot has received a message
+    from a teammate during a specific turn.
 
-    def __init__(self, turn_number: int, message: Any, sender_id: int):
-        """Initializes a new instance of the TeamMessageEvent class.
+    Attributes:
+        message (Any): The message sent by the teammate. Cannot be None.
+        sender_id (int): The unique ID of the teammate who sent the message.
+    """
 
-        Args:
-            turn_number: The turn number when the team message was received.
-            message: The message that was received.
-            sender_id: The id of the teammate that sent the message.
-
-        Raises:
-            ValueError: If 'message' is None.
-        """
-        super().__init__(turn_number)
-        if message is None:
-            raise ValueError("'message' cannot be None")
-        self.message = message
-        self.sender_id = sender_id
-
-    def get_message(self) -> Any:
-        """Returns the message that was received.
-
-        Returns:
-            The message that was received.
-        """
-        return self.message
-
-    def get_sender_id(self) -> int:
-        """Returns the ID of the teammate that sent the message.
-
-        Returns:
-            The ID of the teammate that sent the message.
-        """
-        return self.sender_id
+    message: Any
+    sender_id: int

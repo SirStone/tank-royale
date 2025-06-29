@@ -1,31 +1,26 @@
-from robocode_tank_royale.bot_api.events.event_abc import EventABC
+from dataclasses import dataclass
+
+from .event_abc import EventABC
 
 
+@dataclass(frozen=True, repr=True)
 class BotEvent(EventABC):
-    """Bot event occurring during a battle."""
+    """
+    Represents any event related to a bot during a battle.
+    This class serves as the parent for all bot-related events and provides
+    default implementations for common bot event methods.
 
-    def __init__(self, turn_number: int):
-        """Initializes a new instance of the Event class.
-
-        Args:
-            turn_number: The turn number when the event occurred.
-        """
-        self.turn_number = turn_number
-
-    def get_turn_number(self) -> int:
-        """Returns the turn number when the event occurred.
-
-        Returns:
-            The turn number when the event occurred.
-        """
-        return self.turn_number
+    Attributes:
+        turn_number (int): The turn number when this event occurred.
+    """
+    turn_number: int
 
     def is_critical(self) -> bool:
-        """Indicates if this event is critical.
-        
-        Critical events should not be removed from event queue when it gets old.
-
-        Returns:
-            True if this event is critical; False otherwise. Default is False.
         """
+           Determines whether the event is critical.
+           By default, events are not critical, but subclasses can override this
+           to provide event-specific criticality logic.
+           Returns:
+               bool: False by default.
+           """
         return False

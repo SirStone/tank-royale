@@ -1,22 +1,15 @@
-from robocode_tank_royale.bot_api.events.connection_event import ConnectionEvent
+from dataclasses import dataclass
 
+from .connection_event import ConnectionEvent
+
+
+@dataclass(frozen=True, repr=True)
 class ConnectionErrorEvent(ConnectionEvent):
-    """Event occurring when a connection error occurs."""
+    """
+    Represents an event that occurs when a connection error happens.
 
-    def __init__(self, server_uri: str, error: Exception):
-        """Initializes a new instance of the ConnectionErrorEvent class.
+    Attributes:
+        error (Exception): The exception representing the connection error.
+    """
 
-        Args:
-            server_uri: The URI of the server.
-            error: The error.
-        """
-        super().__init__(server_uri)
-        self.error = error
-
-    def get_error(self) -> Exception:
-        """Returns the error.
-
-        Returns:
-            The error.
-        """
-        return self.error
+    error: Exception | None = None

@@ -1,43 +1,21 @@
-from robocode_tank_royale.bot_api.initial_position import InitialPosition
-from robocode_tank_royale.bot_api.game_setup import GameSetup
-from robocode_tank_royale.bot_api.events.abstract_event import IEvent
+from dataclasses import dataclass
+
+from ..game_setup import GameSetup
+from ..initial_position import InitialPosition
+from .event_abc import EventABC
 
 
-class GameStartedEvent(IEvent):
-    """Event occurring when game has just started."""
+@dataclass(frozen=True, repr=True)
+class GameStartedEvent(EventABC):
+    """
+    Represents an event triggered when the game starts.
 
-    def __init__(self, my_id: int, initial_position: InitialPosition, game_setup: GameSetup):
-        """Initializes a new instance of the GameStartedEvent class.
+    Attributes:
+        my_id (int): The unique identifier for your bot in the current battle.
+        initial_position (InitialPosition): The starting position of the bot.
+        game_setup (GameSetup): The configuration details for the game that has just started.
+    """
 
-        Args:
-            my_id: The id used for identifying your bot in the current battle.
-            initial_position: The initial position of the bot.
-            game_setup: The game setup for the battle just started.
-        """
-        self.my_id = my_id
-        self.initial_position = initial_position
-        self.game_setup = game_setup
-
-    def get_my_id(self) -> int:
-        """Returns the id used for identifying your bot in the current battle.
-
-        Returns:
-            The id used for identifying your bot.
-        """
-        return self.my_id
-
-    def get_initial_position(self) -> InitialPosition:
-        """Returns the start position of the bot.
-
-        Returns:
-            The start position of the bot.
-        """
-        return self.initial_position
-
-    def get_game_setup(self) -> GameSetup:
-        """Returns the game setup for the battle just started.
-
-        Returns:
-            The game setup for the battle just started.
-        """
-        return self.game_setup
+    my_id: int
+    initial_position: InitialPosition
+    game_setup: GameSetup
