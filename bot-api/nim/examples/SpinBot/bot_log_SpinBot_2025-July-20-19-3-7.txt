@@ -1,0 +1,6 @@
+[19:3:7] === Bot Debug Log Started: 2025-07-20T19:03:07+02:00 ===
+[19:3:7] Starting bot: SpinBot
+[19:3:7] Server URL: ws://localhost:7654
+[19:3:7] Connected to Tank Royale server!
+[19:3:7] Disconnected from Tank Royale server
+[19:3:7] === Bot Debug Log Ended ===

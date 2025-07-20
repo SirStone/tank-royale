@@ -76,3 +76,33 @@ task examples, "Run all official Tank Royale sample bots":
   echo "  nimble corners     - Corner seeking with adaptive strategy"
   echo "  nimble crazy       - Zigzag movement with wall bouncing"
   echo "  nimble velocity    - Turn rates and speed demonstration"
+
+# Build tasks for Tank Royale bot directories
+task buildbots, "Build all bots and place executables in their directories":
+  echo "Building all Tank Royale bots into their directories..."
+  exec "nim c --path:src -o:examples/MyFirstBot/MyFirstBot examples/my_first_bot.nim"
+  exec "nim c --path:src -o:examples/SpinBot/SpinBot examples/spin_bot.nim"
+  exec "nim c --path:src -o:examples/WallsBot/WallsBot examples/walls_bot.nim"
+  exec "nim c --path:src -o:examples/CornersBot/CornersBot examples/corners_bot.nim"
+  exec "nim c --path:src -o:examples/CrazyBot/CrazyBot examples/crazy_bot.nim"
+  exec "nim c --path:src -o:examples/VelocityBot/VelocityBot examples/velocity_bot.nim"
+  echo "All bots built successfully!"
+
+task buildbot, "Build a specific bot (usage: nimble buildbot --bot:BotName)":
+  let botName = paramStr(paramCount())
+  case botName:
+    of "MyFirstBot":
+      exec "nim c --path:src -o:examples/MyFirstBot/MyFirstBot examples/my_first_bot.nim"
+    of "SpinBot":
+      exec "nim c --path:src -o:examples/SpinBot/SpinBot examples/spin_bot.nim"
+    of "WallsBot":
+      exec "nim c --path:src -o:examples/WallsBot/WallsBot examples/walls_bot.nim"
+    of "CornersBot":
+      exec "nim c --path:src -o:examples/CornersBot/CornersBot examples/corners_bot.nim"
+    of "CrazyBot":
+      exec "nim c --path:src -o:examples/CrazyBot/CrazyBot examples/crazy_bot.nim"
+    of "VelocityBot":
+      exec "nim c --path:src -o:examples/VelocityBot/VelocityBot examples/velocity_bot.nim"
+    else:
+      echo "Unknown bot: " & botName
+      echo "Available bots: MyFirstBot, SpinBot, WallsBot, CornersBot, CrazyBot, VelocityBot"

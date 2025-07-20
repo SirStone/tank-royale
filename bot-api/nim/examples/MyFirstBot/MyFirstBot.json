@@ -1,0 +1,12 @@
+{
+  "name": "MyFirstBot",
+  "version": "1.0.0",
+  "authors": ["Mathew Nelson", "Nim Community"],
+  "description": "A simple bot with basic seesaw motion pattern",
+  "homepage": "https://github.com/robocode-dev/tank-royale",
+  "countryCodes": ["US"],
+  "gameTypes": ["classic", "melee", "1v1"],
+  "platform": "Nim",
+  "programmingLang": "Nim",
+  "initialPosition": null
+}

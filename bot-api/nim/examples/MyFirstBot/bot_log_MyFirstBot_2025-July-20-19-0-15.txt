@@ -1,0 +1,6 @@
+[19:0:15] === Bot Debug Log Started: 2025-07-20T19:00:15+02:00 ===
+[19:0:15] Starting bot: MyFirstBot
+[19:0:15] Server URL: ws://localhost:7654
+[19:0:15] Connected to Tank Royale server!
+[19:0:15] Disconnected from Tank Royale server
+[19:0:15] === Bot Debug Log Ended ===

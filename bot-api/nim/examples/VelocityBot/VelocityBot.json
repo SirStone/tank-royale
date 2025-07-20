@@ -1,0 +1,12 @@
+{
+  "name": "VelocityBot",
+  "version": "1.0",
+  "authors": ["Tank Royale Team"],
+  "description": "A bot that demonstrates velocity control and movement patterns",
+  "url": "",
+  "countryCode": "US",
+  "gameTypes": ["classic", "melee", "1v1"],
+  "platform": "Nim",
+  "programmingLang": "Nim",
+  "initialPosition": "x=50,y=50,angle=0"
+}
