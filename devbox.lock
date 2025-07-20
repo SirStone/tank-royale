@@ -1,0 +1,37 @@
+{
+  "lockfile_version": "1",
+  "packages": {
+    "github:NixOS/nixpkgs/nixpkgs-unstable": {
+      "last_modified": "2025-06-20T02:24:11Z",
+      "resolved": "github:NixOS/nixpkgs/076e8c6678d8c54204abcb4b1b14c366835a58bb?lastModified=1750386251&narHash=sha256-1ovgdmuDYVo5OUC5NzdF%2BV4zx2uT8RtsgZahxidBTyw%3D"
+    },
+    "jdk@11": {
+      "last_modified": "2025-07-13T22:45:35Z",
+      "resolved": "github:NixOS/nixpkgs/a421ac6595024edcfbb1ef950a3712b89161c359#jdk11",
+      "source": "devbox-search",
+      "version": "11.0.24",
+      "systems": {
+        "aarch64-darwin": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/w1iik5wzwljw7jzwxb2iy91lyrk5qqwx-zulu-ca-jdk-11.0.24",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/w1iik5wzwljw7jzwxb2iy91lyrk5qqwx-zulu-ca-jdk-11.0.24"
+        },
+        "x86_64-darwin": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/26grhkvhlnjg2d0sjcbcfq3b7hbdrnnr-zulu-ca-jdk-11.0.24",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/26grhkvhlnjg2d0sjcbcfq3b7hbdrnnr-zulu-ca-jdk-11.0.24"
+        }
+      }
+    }
+  }
+}

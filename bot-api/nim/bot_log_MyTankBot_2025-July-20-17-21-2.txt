@@ -1,0 +1,4 @@
+[17:21:2] === Bot Debug Log Started: 2025-07-20T17:21:02+02:00 ===
+[17:21:2] Starting bot: MyTankBot
+[17:21:2] Server URL: ws://localhost:7654
+[17:21:2] Connected to Tank Royale server!
