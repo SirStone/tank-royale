@@ -119,3 +119,8 @@ method setFire*(bot: BaseBot, firepower: float) =
   ## Sets the firepower for the next turn
   bot.pendingFirepower = firepower
   bot.hasFireCommand = true
+
+# Getter methods for pending commands
+method getTargetSpeed*(bot: BaseBot): float =
+  ## Gets the current target speed
+  return bot.pendingTargetSpeed

@@ -33,3 +33,46 @@ task advanced, "Run the advanced network bot example":
   echo "Building and running advanced network bot example..."
   echo "NOTE: Make sure Tank Royale server is running on localhost:7654"
   exec "nim c -r --path:src examples/advanced_network_bot.nim"
+
+# Official Bot Example Tasks
+task myfirstbot, "Run MyFirstBot - simple seesaw motion with gun spinning":
+  echo "Building and running MyFirstBot (Official Tank Royale sample)..."
+  echo "NOTE: Make sure Tank Royale server is running on localhost:7654"
+  exec "nim c -r --path:src examples/my_first_bot.nim"
+
+task spinbot, "Run SpinBot - continuous circular movement while firing":
+  echo "Building and running SpinBot (Official Tank Royale sample)..."
+  echo "NOTE: Make sure Tank Royale server is running on localhost:7654"
+  exec "nim c -r --path:src examples/spin_bot.nim"
+
+task walls, "Run Walls - navigate battlefield perimeter with gun pointed inward":
+  echo "Building and running Walls (Official Tank Royale sample)..."
+  echo "NOTE: Make sure Tank Royale server is running on localhost:7654"
+  exec "nim c -r --path:src examples/walls_bot.nim"
+
+task corners, "Run Corners - move to corners and scan, adaptive strategy":
+  echo "Building and running Corners (Official Tank Royale sample)..."
+  echo "NOTE: Make sure Tank Royale server is running on localhost:7654"
+  exec "nim c -r --path:src examples/corners_bot.nim"
+
+task crazy, "Run Crazy - zigzag movement pattern with wall bouncing":
+  echo "Building and running Crazy (Official Tank Royale sample)..."
+  echo "NOTE: Make sure Tank Royale server is running on localhost:7654"
+  exec "nim c -r --path:src examples/crazy_bot.nim"
+
+task velocity, "Run VelocityBot - demonstrates turn rates and target speeds":
+  echo "Building and running VelocityBot (Official Tank Royale sample)..."
+  echo "NOTE: Make sure Tank Royale server is running on localhost:7654"
+  exec "nim c -r --path:src examples/velocity_bot.nim"
+
+task examples, "Run all official Tank Royale sample bots":
+  echo "Running all official Tank Royale sample bot examples..."
+  echo "NOTE: Make sure Tank Royale server is running on localhost:7654"
+  echo ""
+  echo "You can run individual bots with:"
+  echo "  nimble myfirstbot  - Simple seesaw motion"
+  echo "  nimble spinbot     - Continuous circular movement"
+  echo "  nimble walls       - Battlefield perimeter navigation"
+  echo "  nimble corners     - Corner seeking with adaptive strategy"
+  echo "  nimble crazy       - Zigzag movement with wall bouncing"
+  echo "  nimble velocity    - Turn rates and speed demonstration"

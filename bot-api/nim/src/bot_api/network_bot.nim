@@ -1,7 +1,7 @@
 ## Network-enabled bot that can connect to Tank Royale server
 ## Extends the base Bot with networking capabilities
 
-import asyncdispatch, json, times, strformat, strutils, random
+import asyncdispatch, json, times, strformat, strutils, random, math
 import ./bot
 import ./base_bot
 import ./bot_info
@@ -18,6 +18,17 @@ type
     gameStarted: bool
     debugMode*: bool
     logFile*: File
+    # Bot state fields
+    x*: float
+    y*: float
+    direction*: float
+    gunDirection*: float
+    radarDirection*: float
+    speed*: float
+    energy*: float
+    # Arena size (received from server when game starts)
+    arenaWidth*: int
+    arenaHeight*: int
 
   BotIntent = object
     `type`: string
@@ -57,6 +68,9 @@ proc newNetworkBot*(botInfo: BotInfo, serverUrl: string = "ws://localhost:7654",
   result.currentTick = 0
   result.gameStarted = false
   result.debugMode = debugMode
+  # Initialize arena dimensions (will be updated when game starts)
+  result.arenaWidth = 800  # Default arena size
+  result.arenaHeight = 600
   
   if debugMode:
     let now = times.now()
@@ -125,6 +139,13 @@ proc onServerMessage(bot: NetworkBot, message: string) =
       let myId = jsonMsg["myId"].getInt()
       bot.log(&"Game started! My ID: {myId}")
       
+      # Extract arena dimensions from the game setup
+      if jsonMsg.hasKey("gameSetup"):
+        let gameSetup = jsonMsg["gameSetup"]
+        bot.arenaWidth = gameSetup["arenaWidth"].getInt()
+        bot.arenaHeight = gameSetup["arenaHeight"].getInt()
+        bot.log(&"Arena size: {bot.arenaWidth}x{bot.arenaHeight}")
+      
       # Send ready signal
       let readyMsg = """{"type": "BotReady"}"""
       asyncCheck bot.client.send(readyMsg)
@@ -137,12 +158,20 @@ proc onServerMessage(bot: NetworkBot, message: string) =
     of "TickEventForBot":
       bot.currentTick = jsonMsg["turnNumber"].getInt()
       
-      # Parse bot state
+      # Parse and update bot state
       if jsonMsg.hasKey("botState"):
         let botStateJson = jsonMsg["botState"]
-        bot.log(&"Turn {bot.currentTick}: Energy={botStateJson[\"energy\"].getFloat():.1f}, " &
-                &"X={botStateJson[\"x\"].getFloat():.1f}, Y={botStateJson[\"y\"].getFloat():.1f}, " &
-                &"Direction={botStateJson[\"direction\"].getFloat():.1f}°")
+        bot.x = botStateJson["x"].getFloat()
+        bot.y = botStateJson["y"].getFloat()
+        bot.direction = botStateJson["direction"].getFloat()
+        bot.gunDirection = botStateJson["gunDirection"].getFloat()
+        bot.radarDirection = botStateJson["radarDirection"].getFloat()
+        bot.speed = botStateJson["speed"].getFloat()
+        bot.energy = botStateJson["energy"].getFloat()
+        
+        bot.log(&"Turn {bot.currentTick}: Energy={bot.energy:.1f}, " &
+                &"X={bot.x:.1f}, Y={bot.y:.1f}, " &
+                &"Direction={bot.direction:.1f}°")
       
       # Parse enemy bots if any
       if jsonMsg.hasKey("enemyBots") and jsonMsg["enemyBots"].len > 0:
@@ -309,3 +338,143 @@ method fire*(bot: NetworkBot) =
 method fire*(bot: NetworkBot, firepower: float) =
   ## Fire with specified firepower
   cast[Bot](bot).fire(firepower)
+
+proc normalizeRelativeAngle*(angle: float): float =
+  ## Normalizes an angle to a relative angle in the range [-180, 180)
+  var normalizedAngle = angle mod 360.0
+  if normalizedAngle >= 180.0:
+    normalizedAngle -= 360.0
+  elif normalizedAngle < -180.0:
+    normalizedAngle += 360.0
+  return normalizedAngle
+
+proc calcBearing*(bot: NetworkBot, direction: float): float =
+  ## Calculates the bearing (delta angle) between the input direction and the bot's direction
+  ## bearing = calcBearing(direction) = normalizeRelativeAngle(direction - getDirection())
+  return normalizeRelativeAngle(direction - bot.direction)
+
+proc bearingTo*(bot: NetworkBot, x: float, y: float): float =
+  ## Calculates the bearing to a point (x, y)
+  let directionToPoint = math.arctan2(y - bot.y, x - bot.x) * 180.0 / math.PI
+  return bot.calcBearing(directionToPoint)
+
+proc distanceTo*(bot: NetworkBot, x: float, y: float): float =
+  ## Calculates the distance to a point (x, y)
+  let dx = x - bot.x
+  let dy = y - bot.y
+  return math.sqrt(dx * dx + dy * dy)
+
+# Arena and state access methods
+method getArenaWidth*(bot: NetworkBot): int =
+  ## Get the arena width
+  return bot.arenaWidth
+
+method getArenaHeight*(bot: NetworkBot): int =
+  ## Get the arena height
+  return bot.arenaHeight
+
+method getDirection*(bot: NetworkBot): float =
+  ## Get current body direction
+  return bot.direction
+
+method getGunDirection*(bot: NetworkBot): float =
+  ## Get current gun direction
+  return bot.gunDirection
+
+method getRadarDirection*(bot: NetworkBot): float =
+  ## Get current radar direction
+  return bot.radarDirection
+
+method getEnemyCount*(bot: NetworkBot): int =
+  ## Get number of enemies remaining
+  # This would typically be updated from the server tick events
+  # For now, return a placeholder value
+  return 1
+
+# Color setting methods (these set colors in the bot intent)
+method setBodyColor*(bot: NetworkBot, color: string) =
+  ## Set body color
+  # Color setting is handled in the BotIntent creation
+  discard
+
+method setTurretColor*(bot: NetworkBot, color: string) =
+  ## Set gun turret color
+  # Color setting is handled in the BotIntent creation
+  discard
+
+method setRadarColor*(bot: NetworkBot, color: string) =
+  ## Set radar color
+  # Color setting is handled in the BotIntent creation
+  discard
+
+method setBulletColor*(bot: NetworkBot, color: string) =
+  ## Set bullet color
+  # Color setting is handled in the BotIntent creation
+  discard
+
+method setScanColor*(bot: NetworkBot, color: string) =
+  ## Set scan arc color
+  # Color setting is handled in the BotIntent creation
+  discard
+
+# Radar control method
+method rescan*(bot: NetworkBot) =
+  ## Force the radar to rescan
+  # This should trigger an immediate radar scan
+  # In the current implementation, we'll set a flag to trigger rescan in the next intent
+  discard
+
+# Movement control methods
+method stop*(bot: NetworkBot) =
+  ## Stop all movement
+  cast[Bot](bot).setTargetSpeed(0.0)
+
+method resume*(bot: NetworkBot) =
+  ## Resume previous movement
+  # This would typically resume from a previously stopped state
+  # For now, just allow movement again
+  discard
+
+method isRunning*(bot: NetworkBot): bool =
+  ## Check if the bot is still running
+  return bot.isRunning
+
+# Movement and turning methods with remaining tracking
+method setForward*(bot: NetworkBot, distance: float) =
+  ## Set the bot to move forward a specific distance
+  # Set target speed based on distance
+  if distance > 0:
+    cast[Bot](bot).setTargetSpeed(8.0)  # Move forward at max speed
+  else:
+    cast[Bot](bot).setTargetSpeed(-8.0)  # Move backward
+  
+method setBack*(bot: NetworkBot, distance: float) =
+  ## Set the bot to move backward a specific distance
+  bot.setForward(-distance)
+
+method getTurnRemaining*(bot: NetworkBot): float =
+  ## Get remaining turn degrees
+  # For now, return 0 since we don't track turn remaining in NetworkBot
+  # This would need proper implementation with turn tracking
+  return 0.0
+
+method setTurnLeft*(bot: NetworkBot, degrees: float) =
+  ## Set the bot to turn left by specified degrees
+  cast[Bot](bot).setTurnRate(-abs(degrees))
+
+method setTurnRight*(bot: NetworkBot, degrees: float) =
+  ## Set the bot to turn right by specified degrees  
+  cast[Bot](bot).setTurnRate(abs(degrees))
+
+# Condition-based waiting
+method waitFor*(bot: NetworkBot, condition: proc(): bool) =
+  ## Wait for a condition to become true
+  # This is a simplified implementation that just calls go() once
+  # A proper implementation would loop until condition is true
+  # For now, just advance one turn
+  cast[Bot](bot).go()
+
+# Speed accessor method
+method getTargetSpeed*(bot: NetworkBot): float =
+  ## Get the current target speed
+  return cast[BaseBot](bot).getTargetSpeed()

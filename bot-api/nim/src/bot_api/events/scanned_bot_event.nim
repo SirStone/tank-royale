@@ -1,4 +1,4 @@
-import bot_state
+import ../bot_state
 import i_event
 
 type 
@@ -11,25 +11,22 @@ type
     speed*: float
     time*: int
 
-  ScannedBotEventObj* = object of ScannedBotEvent
-    eventType*: string
-    scannedBotId*: int
-    energy*: float
-    x*: float
-    y*: float
-    direction*: float
-    speed*: float
-    time*: int  
-
 proc initScannedBotEvent*(scannedBotId: int, energy: float, x: float, y: float, direction: float, speed: float, time: int): ScannedBotEvent =
-  var scannedBotEvent = ScannedBotEventObj(eventType: "ScannedBotEvent", scannedBotId: scannedBotId, energy: energy, x: x, y: y, direction: direction, speed: speed, time: time)
-  return cast[ScannedBotEvent](addr scannedBotEvent)
+  result = ScannedBotEvent(
+    scannedBotId: scannedBotId, 
+    energy: energy, 
+    x: x, 
+    y: y, 
+    direction: direction, 
+    speed: speed, 
+    time: time
+  )
 
 proc getScannedBotId*(event: ScannedBotEvent): int {.inline.} =
   return event.scannedBotId
 
 proc getEventType*(event: ScannedBotEvent): string {.inline.} =
-  return event.eventType
+  return "ScannedBotEvent"
 
 proc isCritical*(event: ScannedBotEvent): bool {.inline.} =
   return false

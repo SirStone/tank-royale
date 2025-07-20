@@ -1,0 +1,6 @@
+[17:53:58] === Bot Debug Log Started: 2025-07-20T17:53:58+02:00 ===
+[17:53:58] Starting bot: Walls
+[17:53:58] Server URL: ws://localhost:7654
+[17:53:58] Connected to Tank Royale server!
+[17:53:58] Disconnected from Tank Royale server
+[17:53:58] === Bot Debug Log Ended ===

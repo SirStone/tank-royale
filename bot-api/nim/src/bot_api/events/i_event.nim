@@ -1,7 +1,7 @@
 ## Interface for an event.
 
 type
-  IEvent* = concept x
+  IEvent* = ref object of RootObj
     ## Base interface for all events
 
   

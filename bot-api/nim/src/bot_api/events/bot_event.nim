@@ -3,7 +3,7 @@
 import i_event
 
 type
-  BotEvent* = object of IEvent
+  BotEvent* = ref object of IEvent
     ## Base class for all bot events
     turnNumber*: int    ## Turn number when this event occurred
     
