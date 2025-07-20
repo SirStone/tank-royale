@@ -1,0 +1,105 @@
+{
+  "lockfile_version": "1",
+  "packages": {
+    "github:NixOS/nixpkgs/nixpkgs-unstable": {
+      "last_modified": "2025-06-20T02:24:11Z",
+      "resolved": "github:NixOS/nixpkgs/076e8c6678d8c54204abcb4b1b14c366835a58bb?lastModified=1750386251&narHash=sha256-1ovgdmuDYVo5OUC5NzdF%2BV4zx2uT8RtsgZahxidBTyw%3D"
+    },
+    "nim@latest": {
+      "last_modified": "2025-07-13T22:45:35Z",
+      "resolved": "github:NixOS/nixpkgs/a421ac6595024edcfbb1ef950a3712b89161c359#nim",
+      "source": "devbox-search",
+      "version": "2.2.4",
+      "systems": {
+        "aarch64-darwin": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/gq7yqjhfy9ydiq4l24cwmvmxsc2q0mkq-arm64-apple-darwin-nim-wrapper-2.2.4",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/gq7yqjhfy9ydiq4l24cwmvmxsc2q0mkq-arm64-apple-darwin-nim-wrapper-2.2.4"
+        },
+        "aarch64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/skbpk6mzs72lbqh5ffafi31w1inlbzgb-aarch64-unknown-linux-gnu-nim-wrapper-2.2.4",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/skbpk6mzs72lbqh5ffafi31w1inlbzgb-aarch64-unknown-linux-gnu-nim-wrapper-2.2.4"
+        },
+        "x86_64-darwin": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/qr9pva92jzrc2mgy5da92na9f8s06jbk-x86_64-apple-darwin-nim-wrapper-2.2.4",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/qr9pva92jzrc2mgy5da92na9f8s06jbk-x86_64-apple-darwin-nim-wrapper-2.2.4"
+        },
+        "x86_64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/45vzcx4iqlpr7s6gj1751ymxhhmmnzj2-x86_64-unknown-linux-gnu-nim-wrapper-2.2.4",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/45vzcx4iqlpr7s6gj1751ymxhhmmnzj2-x86_64-unknown-linux-gnu-nim-wrapper-2.2.4"
+        }
+      }
+    },
+    "nimble@latest": {
+      "last_modified": "2025-07-15T16:15:05Z",
+      "resolved": "github:NixOS/nixpkgs/dab3a6e781554f965bde3def0aa2fda4eb8f1708#nimble",
+      "source": "devbox-search",
+      "version": "0.20.0",
+      "systems": {
+        "aarch64-darwin": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/7x9rak05brmnjpavzy7kvnyaqac9z0w6-nimble-0.20.0",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/7x9rak05brmnjpavzy7kvnyaqac9z0w6-nimble-0.20.0"
+        },
+        "aarch64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/q5bigb9vhsj83iskr5nhh5w074hgsl05-nimble-0.20.0",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/q5bigb9vhsj83iskr5nhh5w074hgsl05-nimble-0.20.0"
+        },
+        "x86_64-darwin": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/8x6r1cln7pkanfxb64n63ln0v0lk0zxy-nimble-0.20.0",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/8x6r1cln7pkanfxb64n63ln0v0lk0zxy-nimble-0.20.0"
+        },
+        "x86_64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/24v70jk4fx8559rp691ksaacz8jvmcvh-nimble-0.20.0",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/24v70jk4fx8559rp691ksaacz8jvmcvh-nimble-0.20.0"
+        }
+      }
+    }
+  }
+}

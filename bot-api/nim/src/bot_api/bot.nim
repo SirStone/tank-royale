@@ -1,206 +1,89 @@
-import bot_api/base_bot
-import json
-import times
+## High-level Bot implementation for Tank Royale Bot API
+## This provides convenient methods for bot programming
+
+import ./base_bot
+import ./i_bot
+import ./bot_info
+import ./constants
 import math
-import random
 
 type
   Bot* = ref object of BaseBot
-    # Add bot-specific fields here if needed
-    name*: string
-    myId*: int
-    
-    energy*: float
-    x*: float
-    y*: float
-    direction*: float
-    gunDirection*: float
-    radarDirection*: float
-    speed*: float
-    
-    turnNumber*: int
-    roundNumber*: int
-    
-    isPaused*: bool
-    isResumed*: bool
-    
-    scanFieldWidth*: float
-    scanFieldHeight*: float
+    ## High-level bot implementation with convenience methods
 
-proc `newBot`*(name: string): Bot =
-  ## Constructor for the Bot type
-  new(result)
-  result.name = name
-  result.myId = -1
+proc newBot*(botInfo: BotInfo): Bot =
+  ## Create a new Bot with given bot information
+  result = cast[Bot](newBaseBot(botInfo))
 
-  result.onConnected = proc (self: BaseBot) =
-    echo "Connected to server"
-  
-  result.onDisconnected = proc (self: BaseBot) =
-      echo "Disconnected from server"
+# Convenience movement methods
+method forward*(bot: Bot, distance: float) =
+  ## Move forward a specific distance
+  if distance > 0:
+    bot.setTargetSpeed(min(distance, MAX_SPEED))
+  else:
+    bot.setTargetSpeed(0.0)
 
-  result.onGameStarted = proc (self: BaseBot) (gameStartedEvent: JsonNode)=
-      echo "Game started"
-      
-      let gameSetup = gameStartedEvent["gameSetup"]
-      self.scanFieldWidth = gameSetup["arena"]["width"].getFloat()
-      self.scanFieldHeight = gameSetup["arena"]["height"].getFloat()
-  
-  result.onGameEnded = proc (self: BaseBot) (gameEndedEvent: JsonNode) =
-    echo "Game ended"
-  
-  result.onRoundStarted = proc (self: BaseBot) (roundStartedEvent: JsonNode) =
-    echo "Round started"
-    self.roundNumber = roundStartedEvent["roundNumber"].getInt()
+method back*(bot: Bot, distance: float) =
+  ## Move backward a specific distance
+  if distance > 0:
+    bot.setTargetSpeed(-min(distance, MAX_SPEED))
+  else:
+    bot.setTargetSpeed(0.0)
 
-  result.onRoundEnded = proc (self: BaseBot) (roundEndedEvent: JsonNode) =
-    echo "Round ended"
+method turnLeft*(bot: Bot, degrees: float) =
+  ## Turn left by specified degrees
+  bot.setTurnRate(-min(abs(degrees), MAX_TURN_RATE))
 
-  result.onTick = proc (self: BaseBot) (tickEvent: JsonNode) =
-    if self.myId < 0:
-      self.myId = tickEvent["myId"].getInt()
-    self.turnNumber = tickEvent["turnNumber"].getInt()
+method turnRight*(bot: Bot, degrees: float) =
+  ## Turn right by specified degrees
+  bot.setTurnRate(min(abs(degrees), MAX_TURN_RATE))
 
-    var botStateFound: bool = false
-    for botState in tickEvent["botStates"].getElems():
-      if botState["id"].getInt() == self.myId:
-        self.energy = botState["energy"].getFloat()
-        self.x = botState["x"].getFloat()
-        self.y = botState["y"].getFloat()
-        self.direction = botState["direction"].getFloat()
-        self.gunDirection = botState["gunDirection"].getFloat()
-        self.radarDirection = botState["radarDirection"].getFloat()
-        self.speed = botState["speed"].getFloat()
-        botStateFound = true
-    
-    if not botStateFound:
-        echo "Bot state not found for id: ", self.myId
+method turnGunLeft*(bot: Bot, degrees: float) =
+  ## Turn gun left by specified degrees
+  bot.setGunTurnRate(-min(abs(degrees), MAX_GUN_TURN_RATE))
 
-  result.onScannedBot = proc (self: BaseBot) (scannedBotEvent: JsonNode) =
-    echo "Scanned bot"
-  
-  result.onHitBot = proc (self: BaseBot) (hitBotEvent: JsonNode) =
-    echo "Hit bot"
+method turnGunRight*(bot: Bot, degrees: float) =
+  ## Turn gun right by specified degrees
+  bot.setGunTurnRate(min(abs(degrees), MAX_GUN_TURN_RATE))
 
-  result.onHitByBullet = proc (self: BaseBot) (hitByBulletEvent: JsonNode) =
-    echo "Hit by bullet"
-  
-  result.onHitWall = proc (self: BaseBot) (hitWallEvent: JsonNode) =
-    echo "Hit wall"
+method turnRadarLeft*(bot: Bot, degrees: float) =
+  ## Turn radar left by specified degrees
+  bot.setRadarTurnRate(-min(abs(degrees), MAX_RADAR_TURN_RATE))
 
-  result.onBulletFired = proc (self: BaseBot) (bulletFiredEvent: JsonNode) =
-    echo "Bullet fired"
+method turnRadarRight*(bot: Bot, degrees: float) =
+  ## Turn radar right by specified degrees
+  bot.setRadarTurnRate(min(abs(degrees), MAX_RADAR_TURN_RATE))
 
-  result.onBulletHitBot = proc (self: BaseBot) (bulletHitBotEvent: JsonNode) =
-    echo "Bullet hit bot"
+# Firing methods
+method fire*(bot: Bot) =
+  ## Fire with maximum firepower
+  bot.setFire(MAX_FIREPOWER)
 
-  result.onBulletHitBullet = proc (self: BaseBot) (bulletHitBulletEvent: JsonNode) =
-    echo "Bullet hit bullet"
+method fire*(bot: Bot, firepower: float) =
+  ## Fire with specified firepower
+  let clampedPower = max(MIN_FIREPOWER, min(firepower, MAX_FIREPOWER))
+  bot.setFire(clampedPower)
 
-  result.onBulletHitWall = proc (self: BaseBot) (bulletHitWallEvent: JsonNode) =
-    echo "Bullet hit wall"
+# Main bot logic method
+method run*(bot: Bot) =
+  ## Main bot logic - override this method in your bot implementation
+  # Default behavior: do nothing
+  discard
 
-  result.onSkippedTurn = proc (self: BaseBot) (skippedTurnEvent: JsonNode) =
-    echo "Skipped turn"
+# Utility methods for angle calculations
+proc normalizeAngle*(angle: float): float =
+  ## Normalize angle to [-180, 180] range
+  var normalized = angle
+  while normalized > 180.0:
+    normalized -= 360.0
+  while normalized <= -180.0:
+    normalized += 360.0
+  return normalized
 
-  result.onBotDeath = proc (self: BaseBot) (botDeathEvent: JsonNode) =
-    echo "Bot death"
+proc distanceTo*(x1, y1, x2, y2: float): float =
+  ## Calculate distance between two points
+  return sqrt(pow(x2 - x1, 2) + pow(y2 - y1, 2))
 
-  result.onWonRound = proc (self: BaseBot) (wonRoundEvent: JsonNode) =
-    echo "Won round"
-
-  result.onTeamMessage = proc (self: BaseBot) (teamMessageEvent: JsonNode) =
-    echo "Team message"
-
-proc forward*(bot: Bot, distance: float) =
-    ## Move forward by the specified distance.
-    var intent: JsonNode = %* {"type":"bot-intent", "target":bot.myId}
-    if intent.hasKey("target"):
-      intent["move"] = %* {"distance":distance}
-      bot.sendIntent(intent)
-    else:
-        echo "Intent don't have target"
-
-proc backward*(bot: Bot, distance: float) =
-    ## Move backward by the specified distance.
-    bot.forward(-distance)
-
-proc turnLeft*(bot: Bot, degrees: float) =
-    ## Turn left by the specified degrees.
-    var intent: JsonNode = %* {"type":"bot-intent", "target":bot.myId}
-    if intent.hasKey("target"):
-      intent["turn"] = %* {"degrees":degrees}
-      bot.sendIntent(intent)
-    else:
-      echo "Intent don't have target"
-
-proc turnRight*(bot: Bot, degrees: float) =
-    ## Turn right by the specified degrees.
-    bot.turnLeft(-degrees)
-
-proc turnGunLeft*(bot: Bot, degrees: float) =
-    ## Turn the gun left by the specified degrees.
-    var intent: JsonNode = %* {"type":"bot-intent", "target":bot.myId}
-    if intent.hasKey("target"):
-        intent["gunTurn"] = %* {"degrees":degrees}
-        bot.sendIntent(intent)
-    else:
-        echo "Intent don't have target"
-    
-proc turnGunRight*(bot: Bot, degrees: float) =
-    ## Turn the gun right by the specified degrees.
-    bot.turnGunLeft(-degrees)
-
-proc turnRadarLeft*(bot: Bot, degrees: float) =
-    ## Turn the radar left by the specified degrees.
-    var intent: JsonNode = %* {"type":"bot-intent", "target":bot.myId}
-    if intent.hasKey("target"):
-        intent["radarTurn"] = %* {"degrees":degrees}
-        bot.sendIntent(intent)
-    else:
-        echo "Intent don't have target"
-
-proc turnRadarRight*(bot: Bot, degrees: float) =
-    ## Turn the radar right by the specified degrees.
-    bot.turnRadarLeft(-degrees)
-
-proc fire*(bot: Bot, firepower: float) =
-    ## Fire the gun with the specified firepower.
-    var intent: JsonNode = %* {"type":"bot-intent", "target":bot.myId}
-    if intent.hasKey("target"):
-        intent["fire"] = %* {"power":firepower}
-        bot.sendIntent(intent)
-    else:
-        echo "Intent don't have target"
-
-proc stop*(bot: Bot) =
-  ## Stop the bot's movement.
-  bot.forward(0)
-
-proc resume*(bot: Bot) =
-    ## Resume the bot's movement after a stop.
-    bot.isResumed = true
-
-proc isResumed*(bot: Bot): bool =
-    ## Check if the bot's movement is resumed.
-    return bot.isResumed
-
-proc isPaused*(bot: Bot): bool =
-    ## Check if the bot's movement is paused.
-    return bot.isPaused
-
-proc pause*(bot: Bot) =
-    ## Pause the bot's movement.
-    bot.isPaused = true
-
-proc waitFor*(bot: Bot, condition: proc(bot:Bot):bool, timeout: int) =
-    ## Wait for a condition to be true or a timeout to occur.
-    var startTime = epochTime()
-    while not condition(bot) and epochTime() - startTime < timeout:
-        sleep(10)
-    if not condition(bot):
-        echo "Timeout waiting for condition"
-
-proc getRandom*(bot: Bot, min: float, max:float): float =
-    ## Generate a random float number between min and max
-    return (max - min) * rand(1.0) + min
+proc angleTo*(x1, y1, x2, y2: float): float =
+  ## Calculate angle from point 1 to point 2 in degrees
+  return radToDeg(arctan2(y2 - y1, x2 - x1))

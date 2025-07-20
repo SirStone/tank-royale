@@ -1,58 +1,44 @@
-diff
---- a/bot-api/nim/src/bot_api/constants.nim
-+++ b/bot-api/nim/src/bot_api/constants.nim
-@@ -1,26 +1,26 @@
- import strformat
- 
--const
--  /** Game turn time in milliseconds */
--  GAME_TURN_TIME*: int = 100
-+const 
-+  ## Game turn time in milliseconds
-+  GAME_TURN_TIME* = 100
- 
--  /** Max forward speed */
--  MAX_FORWARD_SPEED*: float = 8.0
-+  ## Max forward speed
-+  MAX_FORWARD_SPEED* = 8.0
- 
--  /** Max backward speed */
--  MAX_BACKWARD_SPEED*: float = 4.0
-+  ## Max backward speed
-+  MAX_BACKWARD_SPEED* = 4.0
- 
--  /** Max turning rate in degrees per turn */
--  MAX_TURN_RATE*: float = 10.0
-+  ## Max turning rate in degrees per turn
-+  MAX_TURN_RATE* = 10.0
- 
--  /** Max gun turning rate in degrees per turn */
--  MAX_GUN_TURN_RATE*: float = 20.0
-+  ## Max gun turning rate in degrees per turn
-+  MAX_GUN_TURN_RATE* = 20.0
- 
--  /** Max radar turning rate in degrees per turn */
--  MAX_RADAR_TURN_RATE*: float = 45.0
-+  ## Max radar turning rate in degrees per turn
-+  MAX_RADAR_TURN_RATE* = 45.0
- 
--  /** Max firing power */
--  MAX_FIRE_POWER*: float = 3.0
-+  ## Max firing power
-+  MAX_FIRE_POWER* = 3.0
- 
--  /** Min firing power */
--  MIN_FIRE_POWER*: float = 0.1
-+  ## Min firing power
-+  MIN_FIRE_POWER* = 0.1
-+  
-+  ## Bot default start energy
-+  DEFAULT_START_ENERGY* = 100.0
+## Constants used in the Tank Royale Bot API.
 
--  /** Default start energy */
--  DEFAULT_START_ENERGY*: float = 100.0
--
--  /** Max energy */
--  MAX_ENERGY*: float = 100.0
-+  ## Max energy
-+  MAX_ENERGY* = 100.0
+const 
+  ## The radius of the bounding circle of the bot, which is a constant of 18 units.
+  BOUNDING_CIRCLE_RADIUS* = 18
+
+  ## The radius of the radar's scan beam, which is a constant of 1200 units.
+  SCAN_RADIUS* = 1200
+
+  ## The maximum possible driving turn rate, which is max. 10 degrees per turn.
+  MAX_TURN_RATE* = 10
+
+  ## The maximum gun turn rate, which is a constant of 20 degrees per turn.
+  MAX_GUN_TURN_RATE* = 20
+
+  ## The maximum radar turn rate, which is a constant of 45 degrees per turn.
+  MAX_RADAR_TURN_RATE* = 45
+
+  ## The maximum absolute speed, which is 8 units per turn.
+  MAX_SPEED* = 8
+
+  ## The minimum firepower, which is 0.1.
+  MIN_FIREPOWER* = 0.1
+
+  ## The maximum firepower, which is 3.
+  MAX_FIREPOWER* = 3.0
+
+  ## The minimum bullet speed is 11 units per turn.
+  MIN_BULLET_SPEED* = 20.0 - 3.0 * MAX_FIREPOWER
+
+  ## The maximum bullet speed is 19.7 units per turn.
+  MAX_BULLET_SPEED* = 20.0 - 3.0 * MIN_FIREPOWER
+
+  ## Acceleration is the increase in speed per turn.
+  ACCELERATION* = 1
+
+  ## Deceleration is the decrease in speed per turn.
+  DECELERATION* = -2
+
+  ## Default start energy
+  DEFAULT_START_ENERGY* = 100.0
+
+  ## Max energy
+  MAX_ENERGY* = 100.0

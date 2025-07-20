@@ -1,129 +1,121 @@
-import os
-import json
-import strutils
-import tables
-import sequtils
+## Base implementation of the Tank Royale Bot API
+## This provides the core functionality for bot control
 
-# Dependencies (add more as needed)
-# You might need to install these:
-# nimble install websockets
-# nimble install chronos
-import websockets
-import chronos
+import ./i_base_bot
+import ./bot_info
+import ./bot_state
+import ./bullet_state
+import ./constants
 
 type
-  BotState* = ref object of RootObj
-    x*: float
-    y*: float
-    direction*: float
-    gunDirection*: float
-    radarDirection*: float
-    speed*: float
-    energy*: float
-    bodyColor*: string
-    turretColor*: string
-    radarColor*: string
-    bulletColor*: string
-    scanColor*: string
-    tracksColor*: string
-    gunColor*: string
+  BaseBot* = ref object of IBaseBot
+    ## Base implementation of the bot interface
+    botInfo: BotInfo
+    botState: BotState
+    bulletStates: seq[BulletState]
+    running: bool
+    turnNumber: int
+    
+    # Pending commands for next turn
+    pendingTargetSpeed: float
+    pendingTurnRate: float
+    pendingGunTurnRate: float
+    pendingRadarTurnRate: float
+    pendingFirepower: float
+    
+    # Command flags
+    hasSpeedCommand: bool
+    hasTurnCommand: bool
+    hasGunTurnCommand: bool
+    hasRadarTurnCommand: bool
+    hasFireCommand: bool
+
+proc newBaseBot*(botInfo: BotInfo): BaseBot =
+  ## Create a new BaseBot with given bot information
+  result = BaseBot()
+  result.botInfo = botInfo
+  result.botState = initBotState()
+  result.bulletStates = @[]
+  result.running = false
+  result.turnNumber = 0
   
-  BulletState* = ref object of RootObj
-    bulletId*: int
-    ownerId*: int
-    x*: float
-    y*: float
-    direction*: float
-    power*: float
-    speed*: float
-    color*: string
-    
-  BotResults* = ref object of RootObj
-    survival*: int
-    lastSurvivorBonus*: float
-    bulletDamage*: float
-    bulletKillBonus*: float
-    ramDamage*: float
-    ramKillBonus*: float
-    totalScore*: float
-    totalSurvivalScore*: float
-    totalBulletDamageScore*: float
-    totalRamDamageScore*: float
-    
-  InitialPosition* = ref object of RootObj
-    x*: float
-    y*: float
-    direction*: float
-    
-  GameSetup* = ref object of RootObj
-    gameType*: string
-    arenaWidth*: int
-    arenaHeight*: int
-    minNumberOfParticipants*: int
-    maxNumberOfParticipants*: int
-    numberOfRounds*: int
-    gunCoolingRate*: float
-    maxInactivityTurns*: int
-    turnTimeout*: int
-    readyTimeout*: int
-    numberOfDroid*: int
-    
-  BotInfo* = ref object of RootObj
-    name*: string
-    version*: string
-    authors*: seq[string]
-    description*: string
-    homepage*: string
-    countryCodes*: seq[string]
-    gameTypes*: seq[string]
-    platform*: string
-    programmingLang*: string
-    
-  Event*[T] = ref object of RootObj
-  EventTable* = Table[string, seq[Event[untyped]]]
+  # Initialize pending commands
+  result.pendingTargetSpeed = 0.0
+  result.pendingTurnRate = 0.0
+  result.pendingGunTurnRate = 0.0
+  result.pendingRadarTurnRate = 0.0
+  result.pendingFirepower = 0.0
+  
+  # Initialize command flags
+  result.hasSpeedCommand = false
+  result.hasTurnCommand = false
+  result.hasGunTurnCommand = false
+  result.hasRadarTurnCommand = false
+  result.hasFireCommand = false
 
-  BaseBot* = ref object of RootObj
-    botInfo*: BotInfo
-    myId*: int
-    gameSetup*: GameSetup
-    botState*: BotState
-    bulletStates*: seq[BulletState]
-    
-    # Internal fields for handling connection and events
-    serverUrl*: string
-    serverSecret*: string
-    ws*: WebSocketClient
-    eventQueue*: seq[Event[untyped]]
-    eventHandlers*: EventTable
+# Implement IBaseBot methods
+method getBotId*(bot: BaseBot): int =
+  ## Returns the unique bot ID (placeholder)
+  return 1
 
-proc newBaseBot*(botInfo: BotInfo, serverUrl: string, serverSecret: string): BaseBot =
-  result = BaseBot(
-    botInfo: botInfo,
-    myId: -1, # Will be set by server
-    gameSetup: nil,
-    botState: nil,
-    bulletStates: @[],
-    serverUrl: serverUrl,
-    serverSecret: serverSecret,
-    ws: nil,
-    eventQueue: @[],
-    eventHandlers: initTable[string, seq[Event[untyped]]]()
-  )
+method getBotInfo*(bot: BaseBot): BotInfo =
+  ## Returns bot information
+  return bot.botInfo
 
-proc start*(bot: var BaseBot) {.async.} =
-  echo "Starting bot..."
-  let url = bot.serverUrl
-  echo "Connecting to url: ",url
-  bot.ws = newWebSocketClient()
-  try:
-    await bot.ws.connect(url)
-    echo "Connected to ", url
-    # Implement bot logic here (e.g., sending bot handshake, etc.)
-    bot.run()
-  except CatchableError as e:
-      echo "Error in start method: ", e.msg
+method getBotState*(bot: BaseBot): BotState =
+  ## Returns current bot state
+  return bot.botState
 
+method getBulletStates*(bot: BaseBot): seq[BulletState] =
+  ## Returns states of all bullets currently in the game
+  return bot.bulletStates
 
-proc run*(bot: var BaseBot) {.async.} =
-  echo "Hello from the Nim Base Bot!"
-  # await bot.start()
+method isRunning*(bot: BaseBot): bool =
+  ## Returns true if the bot is currently running
+  return bot.running
+
+method start*(bot: BaseBot) =
+  ## Starts the bot
+  bot.running = true
+
+method stop*(bot: BaseBot) =
+  ## Stops the bot
+  bot.running = false
+
+method go*(bot: BaseBot) =
+  ## Executes all pending commands and waits for next turn
+  # This is where we would send commands to the game server
+  # For now, just increment turn number and clear commands
+  bot.turnNumber += 1
+  
+  # Clear all pending commands
+  bot.hasSpeedCommand = false
+  bot.hasTurnCommand = false
+  bot.hasGunTurnCommand = false
+  bot.hasRadarTurnCommand = false
+  bot.hasFireCommand = false
+
+method setTargetSpeed*(bot: BaseBot, speed: float) =
+  ## Sets the target speed for the next turn
+  bot.pendingTargetSpeed = speed
+  bot.hasSpeedCommand = true
+
+method setTurnRate*(bot: BaseBot, turnRate: float) =
+  ## Sets the turn rate for the next turn
+  bot.pendingTurnRate = turnRate
+  bot.hasTurnCommand = true
+
+method setGunTurnRate*(bot: BaseBot, gunTurnRate: float) =
+  ## Sets the gun turn rate for the next turn
+  bot.pendingGunTurnRate = gunTurnRate
+  bot.hasGunTurnCommand = true
+
+method setRadarTurnRate*(bot: BaseBot, radarTurnRate: float) =
+  ## Sets the radar turn rate for the next turn
+  bot.pendingRadarTurnRate = radarTurnRate
+  bot.hasRadarTurnCommand = true
+
+method setFire*(bot: BaseBot, firepower: float) =
+  ## Sets the firepower for the next turn
+  bot.pendingFirepower = firepower
+  bot.hasFireCommand = true

@@ -1,148 +1,66 @@
-import ./game_setup
+## Base Bot Interface for Tank Royale Bot API
+## This interface defines the low-level methods for bot control
+
 import ./bot_info
 import ./bot_state
 import ./bullet_state
-import ./events/i_event
-import ./events/condition
 
+# Forward declaration
 type
-  IBaseBot* = concept
-    `getBotId` is proc (bot: auto): int
-    `getMyName` is proc (bot: auto): string
-    `getEnemyNames` is proc (bot: auto): seq[string]
-    `getGameSetup` is proc (bot: auto): GameSetup
-    `getBotInfo` is proc (bot: auto): BotInfo
-    `getBotState` is proc (bot: auto): BotState
-    `getBulletStates` is proc (bot: auto): seq[BulletState]
-    `isRunning` is proc (bot: auto): bool
-    `start` is proc (bot: auto)
-    `stop` is proc (bot: auto)
-    `fire` is proc (bot: auto, power: float)
-    `setTargetSpeed` is proc (bot: auto, speed: float)
-    `setTurnRate` is proc (bot: auto, turnRate: float)
-    `setGunTurnRate` is proc (bot: auto, gunTurnRate: float)
-    `setRadarTurnRate` is proc (bot: auto, radarTurnRate: float)
-    `setAdjustGunForBodyTurn` is proc (bot: auto, adjust: bool)
-    `setAdjustRadarForBodyTurn` is proc (bot: auto, adjust: bool)
-    `setAdjustRadarForGunTurn` is proc (bot: auto, adjust: bool)
-    `setMaxTurnRate` is proc (bot: auto, maxTurnRate: float)
-    `setMaxGunTurnRate` is proc (bot: auto, maxGunTurnRate: float)
-    `setMaxRadarTurnRate` is proc (bot: auto, maxRadarTurnRate: float)
-    `setMaxSpeed` is proc (bot: auto, maxSpeed: float)
-    `sendMessage` is proc (bot: auto, recipient: string, message: string)
-    `addEventListener` is proc (bot: auto, priority: int, handler: proc (event: Event))
-    `removeEventListener` is proc (bot: auto, handler: proc (event: Event))
-    `waitFor` is proc (bot: auto, condition: Condition)
-    `nextTurn` is proc (bot: auto)
+  IBaseBot* = ref object of RootObj
+    ## Base interface for all Tank Royale bots
+    
+# Core bot information methods
+method getBotId*(bot: IBaseBot): int {.base.} =
+  ## Returns the unique bot ID
+  raise newException(CatchableError, "Method not implemented")
 
-  IBaseBotRef* = ref IBaseBot
+method getBotInfo*(bot: IBaseBot): BotInfo {.base.} =
+  ## Returns bot information like name, version, etc.
+  raise newException(CatchableError, "Method not implemented")
 
-proc getBotId*(bot: IBaseBot): int
-proc getMyName*(bot: IBaseBot): string
-proc getEnemyNames*(bot: IBaseBot): seq[string]
-proc getGameSetup*(bot: IBaseBot): GameSetup
-proc getBotInfo*(bot: IBaseBot): BotInfo
-proc getBotState*(bot: IBaseBot): BotState
-proc getBulletStates*(bot: IBaseBot): seq[BulletState]
-proc isRunning*(bot: IBaseBot): bool
-proc start*(bot: IBaseBot)
-proc stop*(bot: IBaseBot)
-proc fire*(bot: IBaseBot, power: float)
-proc setTargetSpeed*(bot: IBaseBot, speed: float)
-proc setTurnRate*(bot: IBaseBot, turnRate: float)
-proc setGunTurnRate*(bot: IBaseBot, gunTurnRate: float)
-proc setRadarTurnRate*(bot: IBaseBot, radarTurnRate: float)
-proc setAdjustGunForBodyTurn*(bot: IBaseBot, adjust: bool)
-proc setAdjustRadarForBodyTurn*(bot: IBaseBot, adjust: bool)
-proc setAdjustRadarForGunTurn*(bot: IBaseBot, adjust: bool)
-proc setMaxTurnRate*(bot: IBaseBot, maxTurnRate: float)
-proc setMaxGunTurnRate*(bot: IBaseBot, maxGunTurnRate: float)
-proc setMaxRadarTurnRate*(bot: IBaseBot, maxRadarTurnRate: float)
-proc setMaxSpeed*(bot: IBaseBot, maxSpeed: float)
-proc sendMessage*(bot: IBaseBot, recipient: string, message: string)
-proc addEventListener*(bot: IBaseBot, priority: int, handler: proc (event: Event))
-proc removeEventListener*(bot: IBaseBot, handler: proc (event: Event))
-proc waitFor*(bot: IBaseBot, condition: Condition)
-proc nextTurn*(bot: IBaseBot)
+method getBotState*(bot: IBaseBot): BotState {.base.} =
+  ## Returns current bot state (position, energy, etc.)
+  raise newException(CatchableError, "Method not implemented")
 
+method getBulletStates*(bot: IBaseBot): seq[BulletState] {.base.} =
+  ## Returns states of all bullets currently in the game
+  raise newException(CatchableError, "Method not implemented")
 
-proc getBotId*(bot: IBaseBotRef): int = 
-  return bot.getBotId()
+# Bot control methods
+method isRunning*(bot: IBaseBot): bool {.base.} =
+  ## Returns true if the bot is currently running
+  raise newException(CatchableError, "Method not implemented")
 
-proc getMyName*(bot: IBaseBotRef): string =
-  return bot.getMyName()
+method start*(bot: IBaseBot) {.base.} =
+  ## Starts the bot
+  raise newException(CatchableError, "Method not implemented")
 
-proc getEnemyNames*(bot: IBaseBotRef): seq[string] =
-  return bot.getEnemyNames()
+method stop*(bot: IBaseBot) {.base.} =
+  ## Stops the bot
+  raise newException(CatchableError, "Method not implemented")
 
-proc getGameSetup*(bot: IBaseBotRef): GameSetup =
-  return bot.getGameSetup()
+method go*(bot: IBaseBot) {.base.} =
+  ## Executes all pending commands and waits for next turn
+  raise newException(CatchableError, "Method not implemented")
 
-proc getBotInfo*(bot: IBaseBotRef): BotInfo =
-  return bot.getBotInfo()
+# Movement and action commands
+method setTargetSpeed*(bot: IBaseBot, speed: float) {.base.} =
+  ## Sets the target speed for the next turn
+  raise newException(CatchableError, "Method not implemented")
 
-proc getBotState*(bot: IBaseBotRef): BotState =
-  return bot.getBotState()
+method setTurnRate*(bot: IBaseBot, turnRate: float) {.base.} =
+  ## Sets the turn rate for the next turn
+  raise newException(CatchableError, "Method not implemented")
 
-proc getBulletStates*(bot: IBaseBotRef): seq[BulletState] =
-  return bot.getBulletStates()
+method setGunTurnRate*(bot: IBaseBot, gunTurnRate: float) {.base.} =
+  ## Sets the gun turn rate for the next turn
+  raise newException(CatchableError, "Method not implemented")
 
-proc isRunning*(bot: IBaseBotRef): bool =
-  return bot.isRunning()
+method setRadarTurnRate*(bot: IBaseBot, radarTurnRate: float) {.base.} =
+  ## Sets the radar turn rate for the next turn
+  raise newException(CatchableError, "Method not implemented")
 
-proc start*(bot: IBaseBotRef) =
-  bot.start()
-
-proc stop*(bot: IBaseBotRef) =
-  bot.stop()
-
-proc fire*(bot: IBaseBotRef, power: float) =
-  bot.fire(power)
-
-proc setTargetSpeed*(bot: IBaseBotRef, speed: float) =
-  bot.setTargetSpeed(speed)
-
-proc setTurnRate*(bot: IBaseBotRef, turnRate: float) =
-  bot.setTurnRate(turnRate)
-
-proc setGunTurnRate*(bot: IBaseBotRef, gunTurnRate: float) =
-  bot.setGunTurnRate(gunTurnRate)
-
-proc setRadarTurnRate*(bot: IBaseBotRef, radarTurnRate: float) =
-  bot.setRadarTurnRate(radarTurnRate)
-
-proc setAdjustGunForBodyTurn*(bot: IBaseBotRef, adjust: bool) =
-  bot.setAdjustGunForBodyTurn(adjust)
-
-proc setAdjustRadarForBodyTurn*(bot: IBaseBotRef, adjust: bool) =
-  bot.setAdjustRadarForBodyTurn(adjust)
-
-proc setAdjustRadarForGunTurn*(bot: IBaseBotRef, adjust: bool) =
-  bot.setAdjustRadarForGunTurn(adjust)
-
-proc setMaxTurnRate*(bot: IBaseBotRef, maxTurnRate: float) =
-  bot.setMaxTurnRate(maxTurnRate)
-
-proc setMaxGunTurnRate*(bot: IBaseBotRef, maxGunTurnRate: float) =
-  bot.setMaxGunTurnRate(maxGunTurnRate)
-
-proc setMaxRadarTurnRate*(bot: IBaseBotRef, maxRadarTurnRate: float) =
-  bot.setMaxRadarTurnRate(maxRadarTurnRate)
-
-proc setMaxSpeed*(bot: IBaseBotRef, maxSpeed: float) =
-  bot.setMaxSpeed(maxSpeed)
-
-proc sendMessage*(bot: IBaseBotRef, recipient: string, message: string) =
-  bot.sendMessage(recipient, message)
-
-proc addEventListener*(bot: IBaseBotRef, priority: int, handler: proc (event: Event)) =
-  bot.addEventListener(priority, handler)
-
-proc removeEventListener*(bot: IBaseBotRef, handler: proc (event: Event)) =
-  bot.removeEventListener(handler)
-
-proc waitFor*(bot: IBaseBotRef, condition: Condition) =
-  bot.waitFor(condition)
-
-proc nextTurn*(bot: IBaseBotRef) =
-  bot.nextTurn()
+method setFire*(bot: IBaseBot, firepower: float) {.base.} =
+  ## Sets the firepower for the next turn
+  raise newException(CatchableError, "Method not implemented")

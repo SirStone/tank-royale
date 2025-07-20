@@ -1,4 +1,3 @@
-nim
 # bot-api/nim/build.nim
 
 import os

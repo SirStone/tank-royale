@@ -1,30 +1,51 @@
-import strutils
+## Bot information that must be provided when creating a bot.
+## This information is used to identify the bot in the game.
+
+import initial_position
 
 type
-  BotInfo* = ref object of RootObj
-    name*: string
-    version*: string
-    authors*: seq[string]
-    description*: string
-    homepage*: string
-    countryCodes*: seq[string]
-    gameTypes*: seq[string]
-    platform*: string
-    programmingLang*: string
+  BotInfo* = object
+    ## Information about the bot
+    name*: string               ## Name of the bot (required)
+    version*: string            ## Version of the bot (required) 
+    authors*: seq[string]       ## Authors of the bot (required)
+    description*: string        ## Description of the bot (optional)
+    homepage*: string           ## Homepage URL for the bot (optional)
+    countryCodes*: seq[string]  ## Country codes (ISO 3166-1 alpha-2) (optional)
+    gameTypes*: seq[string]     ## Game types supported by this bot (optional)
+    platform*: string          ## Platform running the bot (optional)
+    programmingLang*: string    ## Programming language used (optional)
+    initialPosition*: InitialPosition  ## Initial position (optional, for debugging)
 
-proc newBotInfo*(name: string, version: string, authors: seq[string], description: string,
-                homepage: string, countryCodes: seq[string], gameTypes: seq[string],
-                platform: string, programmingLang: string): BotInfo =
-  result = BotInfo()
-  result.name = name
-  result.version = version
-  result.authors = authors
-  result.description = description
-  result.homepage = homepage
-  result.countryCodes = countryCodes
-  result.gameTypes = gameTypes
-  result.platform = platform
-  result.programmingLang = programmingLang
+proc newBotInfo*(name: string, version: string, authors: seq[string]): BotInfo =
+  ## Creates a new BotInfo with required fields only
+  result = BotInfo(
+    name: name,
+    version: version,
+    authors: authors,
+    description: "",
+    homepage: "",
+    countryCodes: @[],
+    gameTypes: @[],
+    platform: "Nim",
+    programmingLang: "Nim"
+  )
+
+proc newBotInfo*(name: string, version: string, authors: seq[string], 
+                 description: string, homepage: string, countryCodes: seq[string], 
+                 gameTypes: seq[string], platform: string, programmingLang: string): BotInfo =
+  ## Creates a new BotInfo with all fields
+  result = BotInfo(
+    name: name,
+    version: version,
+    authors: authors,
+    description: description,
+    homepage: homepage,
+    countryCodes: countryCodes,
+    gameTypes: gameTypes,
+    platform: platform,
+    programmingLang: programmingLang
+  )
 
 proc getName*(botInfo: BotInfo): string =
   botInfo.name

@@ -1,7 +1,7 @@
-import times
+## Interface for an event.
 
 type
-  IEvent* = interface
-    time*: Time
+  IEvent* = concept x
+    ## Base interface for all events
 
   

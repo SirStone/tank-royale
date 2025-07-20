@@ -1,0 +1,26 @@
+# Devbox Environment for Nim Bot API
+
+# This devbox.yaml sets up Nim 2.0+ and essential tools for local development and testing.
+
+version: 1
+packages:
+  - nim@2.0.0
+  - nimble
+  - gcc
+  - gdb
+  - curl
+  - git
+  - openssl
+  - pkg-config
+  - zlib
+  # Add any additional Nim libraries required by your project here
+
+# You can add postCreateCommands to install Nimble packages if needed, e.g.:
+# postCreateCommands:
+#   - nimble install unittest
+#   - nimble install websocket
+
+# Usage:
+# 1. Install Devbox (https://www.jetpack.io/devbox/docs/install/)
+# 2. Run `devbox shell` in this directory to activate the environment
+# 3. Use Nim 2.0+ and all tools locally

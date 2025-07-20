@@ -1,33 +1,30 @@
+## Represents the state of a bullet in the game
+
 import math
 
 type
-  BulletState* = ref object of RootObj
-    bulletId*: int
-    ownerId*: int
-    x*: float
-    y*: float
-    direction*: float
-    power*: float
-    speed*: float
+  BulletState* = object
+    ## Current bullet state
+    bulletId*: int      ## Unique bullet ID
+    ownerId*: int       ## ID of the bot that fired this bullet
+    x*: float          ## X coordinate
+    y*: float          ## Y coordinate
+    direction*: float  ## Direction the bullet is moving (in degrees)
+    power*: float      ## Firepower of the bullet
+    speed*: float      ## Speed of the bullet
 
-proc newBulletState*(bulletId: int, ownerId: int, x: float, y: float, direction: float, power: float, speed: float): BulletState =
-  result = BulletState()
-  result.bulletId = bulletId
-  result.ownerId = ownerId
-  result.x = x
-  result.y = y
-  result.direction = direction
-  result.power = power
-  result.speed = speed
-
-proc getBulletId*(bulletState: BulletState): int =
-  bulletState.bulletId
-
-proc getOwnerId*(bulletState: BulletState): int =
-  bulletState.ownerId
-
-proc getX*(bulletState: BulletState): float =
-  bulletState.x
+proc initBulletState*(bulletId: int, ownerId: int, x: float, y: float, 
+                     direction: float, power: float, speed: float): BulletState =
+  ## Create a new BulletState with specified values
+  result = BulletState(
+    bulletId: bulletId,
+    ownerId: ownerId,
+    x: x,
+    y: y,
+    direction: direction,
+    power: power,
+    speed: speed
+  )
 
 proc getY*(bulletState: BulletState): float =
   bulletState.y

@@ -1,24 +1,15 @@
-import options
+## Initial position of a bot (for debugging purposes).
 
 type
-  InitialPosition* = ref object of RootObj
-    x*: Option[float]
-    y*: Option[float]
-
-proc `==`*(a, b: InitialPosition): bool =
-  if a.isNil or b.isNil:
-      return a.isNil and b.isNil
-  result = a.x == b.x and a.y == b.y
+  InitialPosition* = object
+    x*: float      ## X coordinate
+    y*: float      ## Y coordinate  
+    direction*: float ## Direction in degrees
 
 proc newInitialPosition*(): InitialPosition =
-  new(result)
+  ## Creates a new InitialPosition with default values
+  result = InitialPosition(x: 0.0, y: 0.0, direction: 0.0)
 
-proc newInitialPosition*(x: float, y: float): InitialPosition =
-  result = newInitialPosition()
-  result.x = some(x)
-  result.y = some(y)
-
-proc newInitialPosition*(x: Option[float] = none(float), y: Option[float] = none(float)): InitialPosition = 
-    new(result)
-    result.x = x
-    result.y = y
+proc newInitialPosition*(x: float, y: float, direction: float): InitialPosition =
+  ## Creates a new InitialPosition with specified values
+  result = InitialPosition(x: x, y: y, direction: direction)
