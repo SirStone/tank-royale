@@ -48,10 +48,37 @@ proc newMyFirstBot*(botInfo: BotInfo, serverUrl: string = "ws://localhost:7654",
   ## Create a new MyFirstBot instance
   result = cast[MyFirstBot](newNetworkBot(botInfo, serverUrl, serverSecret, debugMode))
 
+proc newMyFirstBot*(botTypeName: string, serverUrl: string = "ws://localhost:7654", 
+                    serverSecret: string = "", debugMode: bool = true): MyFirstBot =
+  ## Create a new MyFirstBot instance with automatic JSON configuration loading
+  result = cast[MyFirstBot](newNetworkBot(botTypeName, serverUrl, serverSecret, debugMode))
+
 proc main() {.async.} =
   echo "=== Tank Royale Nim Bot - MyFirstBot Example ==="
+  echo "Enhanced with automatic JSON configuration loading!"
   
-  # Create bot info
+  # ENHANCED: Automatic JSON configuration loading
+  # The bot will automatically look for "MyFirstBot.json" in the current directory
+  # and load bot information from it, similar to .NET and Java implementations
+  let bot = newMyFirstBot(
+    botTypeName = "MyFirstBot",  # Automatically loads MyFirstBot.json
+    serverUrl = "ws://localhost:7654",
+    serverSecret = "",
+    debugMode = true
+  )
+  
+  echo "Starting MyFirstBot with automatic JSON configuration loading..."
+  echo "Bot configuration loaded from MyFirstBot.json (if found)"
+  echo "Make sure Tank Royale server is running on localhost:7654"
+  
+  # Start the bot
+  await bot.start()
+
+# Alternative main function for manual BotInfo (backward compatibility)
+proc mainManual() {.async.} =
+  echo "=== Tank Royale Nim Bot - MyFirstBot Example (Manual Config) ==="
+  
+  # Manual bot info creation (old method, still supported)
   let botInfo = newBotInfo(
     name = "MyFirstBot",
     version = "1.0.0",
@@ -64,7 +91,6 @@ proc main() {.async.} =
     programmingLang = "Nim"
   )
   
-  # Create the bot
   let bot = newMyFirstBot(
     botInfo = botInfo,
     serverUrl = "ws://localhost:7654",
@@ -72,10 +98,7 @@ proc main() {.async.} =
     debugMode = true
   )
   
-  echo "Starting MyFirstBot..."
-  echo "Make sure Tank Royale server is running on localhost:7654"
-  
-  # Start the bot
+  echo "Starting MyFirstBot with manual configuration..."
   await bot.start()
 
 when isMainModule:

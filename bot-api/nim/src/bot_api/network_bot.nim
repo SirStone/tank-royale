@@ -79,6 +79,25 @@ proc newNetworkBot*(botInfo: BotInfo, serverUrl: string = "ws://localhost:7654",
     result.logFile = open(logFileName, fmWrite)
     result.log(&"=== Bot Debug Log Started: {now} ===")
 
+proc newNetworkBot*(botTypeName: string, serverUrl: string = "ws://localhost:7654", serverSecret: string = "", debugMode: bool = true): NetworkBot =
+  ## Create a new network-enabled bot with automatic JSON configuration loading
+  ## Automatically searches for {botTypeName}.json configuration file
+  ## Similar to .NET BaseBot() constructor behavior
+  let botInfo = autoLoadFromFile(botTypeName)
+  result = newNetworkBot(botInfo, serverUrl, serverSecret, debugMode)
+  
+  if debugMode:
+    result.log(&"Bot '{botTypeName}' loaded with auto-configuration:")
+    result.log(&"  Name: {botInfo.name}")
+    result.log(&"  Version: {botInfo.version}")
+    result.log(&"  Authors: {botInfo.authors}")
+    if botInfo.description.len > 0:
+      result.log(&"  Description: {botInfo.description}")
+    if botInfo.gameTypes.len > 0:
+      result.log(&"  Game Types: {botInfo.gameTypes}")
+    result.log(&"  Platform: {botInfo.platform}")
+    result.log(&"  Programming Language: {botInfo.programmingLang}")
+
 proc getServerUrl*(bot: NetworkBot): string =
   ## Get the server URL for this network bot
   return bot.client.serverUrl

@@ -57,10 +57,37 @@ proc newSpinBot*(botInfo: BotInfo, serverUrl: string = "ws://localhost:7654",
   ## Create a new SpinBot instance
   result = cast[SpinBot](newNetworkBot(botInfo, serverUrl, serverSecret, debugMode))
 
+proc newSpinBot*(botTypeName: string, serverUrl: string = "ws://localhost:7654",
+                 serverSecret: string = "", debugMode: bool = true): SpinBot =
+  ## Create a new SpinBot instance with automatic JSON configuration loading
+  result = cast[SpinBot](newNetworkBot(botTypeName, serverUrl, serverSecret, debugMode))
+
 proc main() {.async.} =
   echo "=== Tank Royale Nim Bot - SpinBot Example ==="
+  echo "Enhanced with automatic JSON configuration loading!"
   
-  # Create bot info
+  # ENHANCED: Automatic JSON configuration loading
+  # The bot will automatically look for "SpinBot.json" in the current directory
+  # and load bot information from it, similar to .NET and Java implementations
+  let bot = newSpinBot(
+    botTypeName = "SpinBot",  # Automatically loads SpinBot.json
+    serverUrl = "ws://localhost:7654",
+    serverSecret = "",
+    debugMode = true
+  )
+  
+  echo "Starting SpinBot with automatic JSON configuration loading..."
+  echo "Bot configuration loaded from SpinBot.json (if found)"
+  echo "Make sure Tank Royale server is running on localhost:7654"
+  
+  # Start the bot
+  await bot.start()
+
+# Alternative main function for manual BotInfo (backward compatibility)
+proc mainManual() {.async.} =
+  echo "=== Tank Royale Nim Bot - SpinBot Example (Manual Config) ==="
+  
+  # Manual bot info creation (old method, still supported)
   let botInfo = newBotInfo(
     name = "SpinBot",
     version = "1.0.0",

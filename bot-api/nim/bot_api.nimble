@@ -17,6 +17,7 @@ task test, "Run tests":
   exec "nim c -r --path:src tests/test_bot_basic.nim"
   exec "nim c -r --path:src tests/test_inheritance.nim"
   exec "nim c -r --path:src tests/test_network_basic.nim"
+  exec "nim c -r --path:src tests/test_bot_info_json.nim"
   # Clean up compiled test executables (binaries without extensions)
   echo "Cleaning up compiled test executables..."
   exec "find tests -name 'test_*' ! -name '*.nim' -type f -delete"

@@ -8,6 +8,7 @@ This is the Nim language API for creating bots that can participate in battles i
 ✅ **Complete API implementation**  
 ✅ **Tank Royale-compatible bot directories**  
 ✅ **WebSocket networking established**  
+✅ **JSON configuration loading with .NET/Java feature parity**
 
 ## Overview
 
@@ -20,6 +21,7 @@ This API provides a complete set of classes and functions that enable you to eas
 *   **Tank Royale Compatible:** Follows official Tank Royale bot directory structure
 *   **6 Working Examples:** Complete implementations of all official sample bots
 *   **Easy Deployment:** Ready-to-use bot directories with executables and configuration
+*   **🆕 JSON Configuration Loading:** Automatic "business card" loading from JSON files, just like .NET and Java APIs
 
 ## 🚀 Quick Start
 
@@ -55,6 +57,50 @@ Create a new bot in its own directory:
 mkdir examples/MyBot
 cd examples/MyBot
 ```
+
+#### Option 1: With Automatic JSON Configuration Loading (Recommended)
+
+Create `MyBot.json` (your bot's "business card"):
+```json
+{
+  "name": "MyBot",
+  "version": "1.0.0",
+  "authors": ["Your Name"],
+  "description": "My awesome bot",
+  "homepage": "https://example.com",
+  "countryCodes": ["US"],
+  "gameTypes": ["classic", "melee", "1v1"],
+  "platform": "Nim",
+  "programmingLang": "Nim"
+}
+```
+
+Create `MyBot.nim`:
+```nim
+import asyncdispatch
+import bot_api/network_bot
+
+type
+  MyBot* = ref object of NetworkBot
+
+method run*(bot: MyBot) =
+  while bot.isRunning():
+    bot.forward(100.0)
+    bot.turnRight(30.0)
+
+proc newMyBot*(botTypeName: string): MyBot =
+  # Automatically loads MyBot.json
+  result = cast[MyBot](newNetworkBot(botTypeName))
+
+proc main() {.async.} =
+  let bot = newMyBot("MyBot")  # Loads MyBot.json automatically
+  await bot.start()
+
+when isMainModule:
+  waitFor main()
+```
+
+#### Option 2: Manual Configuration
 
 Create `MyBot.nim`:
 ```nim
@@ -155,8 +201,46 @@ method onHitByBullet(self: MyBot, event: HitByBulletEvent) =
   self.forward(100)
 ```
 
+## 🆕 JSON Configuration Loading
+
+The Nim Bot API now supports automatic JSON configuration loading, providing **feature parity with .NET and Java** implementations:
+
+### Automatic Loading
+```nim
+# Bot automatically loads MyBot.json from current directory
+let bot = newNetworkBot("MyBot")
+```
+
+### Manual JSON Loading
+```nim
+# Load specific JSON file
+let botInfo = fromJsonFile("config.json")
+let bot = newNetworkBot(botInfo)
+```
+
+### JSON Format
+Standard Tank Royale format with required fields `name`, `version`, `authors`:
+```json
+{
+  "name": "MyBot",
+  "version": "1.0.0", 
+  "authors": ["Your Name"],
+  "description": "Bot description",
+  "gameTypes": ["classic", "melee"]
+}
+```
+
+**Benefits:**
+- ✅ Zero code changes for existing bots
+- ✅ Tank Royale GUI compatibility
+- ✅ Easy bot metadata management
+- ✅ Graceful fallback if JSON missing
+
+See **[JSON_LOADING_COMPLETE.md](JSON_LOADING_COMPLETE.md)** for complete documentation.
+
 ## 📚 Documentation
 
+- **[JSON_LOADING_COMPLETE.md](JSON_LOADING_COMPLETE.md)**: Complete JSON configuration guide
 - **[BOT_DIRECTORY_GUIDE.md](BOT_DIRECTORY_GUIDE.md)**: Complete guide to bot directory structure
 - **[COMPLETION_SUMMARY.md](COMPLETION_SUMMARY.md)**: Implementation status and achievements
 - **[examples/README.md](examples/README.md)**: Detailed example descriptions
