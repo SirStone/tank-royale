@@ -1,12 +1,11 @@
 {
-  "name": "CrazyBot",
+  "name": "BasicBot",
   "version": "1.0.0",
+  "description": "A basic bot template for Tank Royale demonstrating common patterns",
   "authors": [
-    "Mathew Nelson",
-    "Nim Community"
+    "Nim Developer"
   ],
-  "description": "Moves in a zigzag pattern while firing at enemies",
-  "homepage": "https://github.com/robocode-dev/tank-royale",
+  "homepage": "https://github.com/nim-lang/tank-royale-nim",
   "countryCodes": [
     "US"
   ],

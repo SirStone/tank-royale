@@ -8,15 +8,15 @@
 ## ------------------------------------------------------------------
 
 import asyncdispatch
-import ../src/bot_api/network_bot
-import ../src/bot_api/bot_info
-import ../src/bot_api/base_bot
-import ../src/bot_api/events/scanned_bot_event
-import ../src/bot_api/events/hit_by_bullet_event
-import ../src/bot_api/events/hit_bot_event
-import ../src/bot_api/events/hit_wall_event
-import ../src/bot_api/events/bullet_fired_event
-import ../src/bot_api/events/death_event
+import bot_api/network_bot
+import bot_api/bot_info
+import bot_api/base_bot
+import bot_api/events/scanned_bot_event
+import bot_api/events/hit_by_bullet_event
+import bot_api/events/hit_bot_event
+import bot_api/events/hit_wall_event
+import bot_api/events/bullet_fired_event
+import bot_api/events/death_event
 
 type
   BasicBot* = ref object of NetworkBot

@@ -1,6 +1,0 @@
-[17:56:9] === Bot Debug Log Started: 2025-07-20T17:56:09+02:00 ===
-[17:56:9] Starting bot: Corners
-[17:56:9] Server URL: ws://localhost:7654
-[17:56:9] Connected to Tank Royale server!
-[17:56:9] Disconnected from Tank Royale server
-[17:56:9] === Bot Debug Log Ended ===

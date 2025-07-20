@@ -1,11 +1,20 @@
 {
   "name": "CornersBot",
   "version": "1.0.0",
-  "authors": ["Mathew Nelson", "Nim Community"],
+  "authors": [
+    "Mathew Nelson",
+    "Nim Community"
+  ],
   "description": "A bot that seeks corners and adapts its strategy",
   "homepage": "https://github.com/robocode-dev/tank-royale",
-  "countryCodes": ["US"],
-  "gameTypes": ["classic", "melee", "1v1"],
+  "countryCodes": [
+    "US"
+  ],
+  "gameTypes": [
+    "classic",
+    "melee",
+    "1v1"
+  ],
   "platform": "Nim",
   "programmingLang": "Nim",
   "initialPosition": null

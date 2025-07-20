@@ -1,0 +1,38 @@
+# Bot log files
+bot_log_*.txt
+**/bot_log_*.txt
+bot_log_*_*.txt
+
+# Compiled binaries in bot directories
+examples/*/[A-Z]*[Bb]ot
+examples/*/[A-Z]*[Dd]emo
+examples/*/[A-Z]*[Tt]emplate
+!examples/*/[A-Z]*[Bb]ot.nim
+!examples/*/[A-Z]*[Bb]ot.json
+!examples/*/[A-Z]*[Bb]ot.sh
+!examples/*/[A-Z]*[Bb]ot.cmd
+!examples/*/[A-Z]*[Dd]emo.nim
+!examples/*/[A-Z]*[Dd]emo.json
+!examples/*/[A-Z]*[Dd]emo.sh
+!examples/*/[A-Z]*[Dd]emo.cmd
+!examples/*/[A-Z]*[Tt]emplate.nim
+!examples/*/[A-Z]*[Tt]emplate.json
+!examples/*/[A-Z]*[Tt]emplate.sh
+!examples/*/[A-Z]*[Tt]emplate.cmd
+
+# Old standalone binaries in examples root
+examples/advanced_network_bot
+examples/corners_bot
+examples/crazy_bot
+examples/my_first_bot
+examples/spin_bot
+examples/velocity_bot
+examples/walls_bot
+
+# Nim compiled files
+nimcache/
+*.exe
+
+# Build artifacts
+build/
+dist/

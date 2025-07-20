@@ -2,10 +2,10 @@
 ## This bot demonstrates networking, debugging, and strategy implementation
 
 import asyncdispatch, random, math, strformat
-import ../src/bot_api/network_bot
-import ../src/bot_api/bot_info
-import ../src/bot_api/base_bot
-import ../src/bot_api/constants
+import bot_api/network_bot
+import bot_api/bot_info
+import bot_api/base_bot
+import bot_api/constants
 
 type
   MyTankBot* = ref object of NetworkBot

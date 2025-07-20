@@ -2,8 +2,9 @@
 ## This shows the WebSocket client working without the full bot complexity
 
 import asyncdispatch
-import src/bot_api/websocket_client
-import src/bot_api/bot_info
+import strformat
+import bot_api/websocket_client
+import bot_api/bot_info
 
 proc demoNetworking(): Future[void] {.async.} =
   echo "=== Tank Royale Nim Bot - Networking Demo ==="

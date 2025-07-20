@@ -1,0 +1,18 @@
+{
+  "name": "NetworkingDemo",
+  "version": "1.0.0",
+  "description": "Demonstration of Tank Royale networking functionality",
+  "authors": [
+    "Nim Developer"
+  ],
+  "homepage": "https://github.com/nim-lang/tank-royale-nim",
+  "countryCodes": [
+    "US"
+  ],
+  "gameTypes": [
+    "classic"
+  ],
+  "platform": "Nim",
+  "programmingLang": "Nim",
+  "initialPosition": null
+}

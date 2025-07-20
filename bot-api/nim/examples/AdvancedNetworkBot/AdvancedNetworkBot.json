@@ -1,10 +1,10 @@
 {
-  "name": "VelocityBot",
+  "name": "AdvancedNetworkBot",
   "version": "1.0",
   "authors": [
     "Tank Royale Team"
   ],
-  "description": "A bot that demonstrates velocity control and movement patterns",
+  "description": "Advanced example bot demonstrating networking, debugging, and strategy implementation",
   "url": "",
   "countryCode": "US",
   "gameTypes": [
@@ -14,5 +14,5 @@
   ],
   "platform": "Nim",
   "programmingLang": "Nim",
-  "initialPosition": "x=50,y=50,angle=0"
+  "initialPosition": "x=100,y=100,angle=0"
 }
