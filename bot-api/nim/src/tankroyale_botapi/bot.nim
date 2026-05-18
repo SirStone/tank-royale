@@ -1,0 +1,702 @@
+## Core bot implementation for Robocode Tank Royale Nim bot API.
+##
+## Threading model
+## ---------------
+## Main thread:  WebSocket receive loop.  Receives all server messages,
+##               updates shared state, signals the bot thread.
+## Bot thread:   Runs user's `run()` method and event handlers.
+##
+## Synchronisation uses two channels:
+##   tickChan     main → bot   (true = new tick/state ready; false = stop)
+##   intentChan   bot  → main  (JSON string to send to server)
+
+import std/[json, locks, math]
+import ./constants
+import ./schemas
+import ./utils as botutils
+import ./ws_client
+import ./bot_info
+import ./json_parse
+
+proc toInfiniteValue(rate: float): float {.inline.} =
+  if rate > 0.0: Inf
+  elif rate < 0.0: NegInf
+  else: 0.0
+
+# ---------------------------------------------------------------------------
+# Types
+# ---------------------------------------------------------------------------
+
+type
+  Bot* = ref object of RootObj
+    ## Override `run()` and event handler methods in your bot subtype.
+
+  BotState* = object
+    ## Snapshot of shared state, read by the bot thread.
+
+# ---------------------------------------------------------------------------
+# Global mutable state (module-level; single bot per process)
+# ---------------------------------------------------------------------------
+
+# WebSocket
+var gWs*: SyncWebSocket
+
+# Thread handles
+var gBotThread: Thread[void]
+
+# Channels  — must be opened before use
+var gTickChan:   Channel[bool]     # main → bot: tick arrived (false = stop)
+var gIntentChan: Channel[string]   # bot  → main: send this JSON
+
+# Shared state protected by lock
+var gLock: Lock
+var gRunning    {.guard: gLock.}: bool
+var gIsAlive    {.guard: gLock.}: bool   # bot is alive this round
+var gMyId       {.guard: gLock.}: int
+var gRound      {.guard: gLock.}: int
+var gTurn       {.guard: gLock.}: int
+var gEnemyCount {.guard: gLock.}: int
+var gState      {.guard: gLock.}: schemas.BotState
+var gBullets    {.guard: gLock.}: seq[BulletState]
+var gGameSetup  {.guard: gLock.}: GameSetup
+var gTeammateIds{.guard: gLock.}: seq[int]
+var gVariant    {.guard: gLock.}: string
+var gServerVersion {.guard: gLock.}: string
+# Pending events to dispatch in the bot thread after wakeup
+var gPendingEvents {.guard: gLock.}: seq[JsonNode]
+
+# Bot intent (written by bot thread, read/cleared by main thread)
+var gIntentLock: Lock
+var gIntent     {.guard: gIntentLock.}: JsonNode
+
+# Saved state for stop/resume
+var gStopped:            bool
+var gSavedTurnRate:      float
+var gSavedGunTurnRate:   float
+var gSavedRadarTurnRate: float
+var gSavedTargetSpeed:   float
+
+# Motion tracking (bot thread only)
+var gDistanceRemaining*:    float
+var gTurnRemaining*:        float
+var gGunTurnRemaining*:     float
+var gRadarTurnRemaining*:   float
+var gPreviousDirection:     float
+var gPreviousGunDirection:  float
+var gPreviousRadarDirection: float
+var gOverrideTurnRate:      bool
+var gOverrideGunTurnRate:   bool
+var gOverrideRadarTurnRate: bool
+var gOverrideTargetSpeed:   bool
+var gContinuousTurnRate:    float
+var gContinuousGunTurnRate: float
+var gContinuousRadarTurnRate: float
+var gContinuousTargetSpeed: float
+var gIsOverDriving:         bool
+
+var gMaxSpeed        = MAX_SPEED
+var gMaxTurnRate     = MAX_TURN_RATE
+var gMaxGunTurnRate  = MAX_GUN_TURN_RATE
+var gMaxRadarTurnRate = MAX_RADAR_TURN_RATE
+
+# The bot instance (set by start())
+var gBot*: Bot
+
+# BotInfo (set by start())
+var gBotInfo*: BotInfo
+
+# ---------------------------------------------------------------------------
+# Safe readers (can be called from bot thread without lock in most cases
+# because they read after the tick channel signal — happens-before is enough)
+# ---------------------------------------------------------------------------
+
+proc getMyId*(): int            = withLock(gLock): result = gMyId
+proc getRound*(): int           = withLock(gLock): result = gRound
+proc getTurn*(): int            = withLock(gLock): result = gTurn
+proc getEnemyCount*(): int      = withLock(gLock): result = gEnemyCount
+proc getEnergy*(): float        = withLock(gLock): result = gState.energy
+proc getX*(): float             = withLock(gLock): result = gState.x
+proc getY*(): float             = withLock(gLock): result = gState.y
+proc getDirection*(): float     = withLock(gLock): result = gState.direction
+proc getGunDirection*(): float  = withLock(gLock): result = gState.gunDirection
+proc getRadarDirection*(): float= withLock(gLock): result = gState.radarDirection
+proc getRadarSweep*(): float    = withLock(gLock): result = gState.radarSweep
+proc getSpeed*(): float         = withLock(gLock): result = gState.speed
+proc getTurnRate*(): float      = withLock(gLock): result = gState.turnRate
+proc getGunTurnRate*(): float   = withLock(gLock): result = gState.gunTurnRate
+proc getRadarTurnRate*(): float = withLock(gLock): result = gState.radarTurnRate
+proc getGunHeat*(): float       = withLock(gLock): result = gState.gunHeat
+proc getBodyColor*(): string    = withLock(gLock): result = gState.bodyColor
+proc getTurretColor*(): string  = withLock(gLock): result = gState.turretColor
+proc getRadarColor*(): string   = withLock(gLock): result = gState.radarColor
+proc getBulletColor*(): string  = withLock(gLock): result = gState.bulletColor
+proc getScanColor*(): string    = withLock(gLock): result = gState.scanColor
+proc getTracksColor*(): string  = withLock(gLock): result = gState.tracksColor
+proc getGunColor*(): string     = withLock(gLock): result = gState.gunColor
+proc getArenaWidth*(): int      = withLock(gLock): result = gGameSetup.arenaWidth
+proc getArenaHeight*(): int     = withLock(gLock): result = gGameSetup.arenaHeight
+proc getVariant*(): string      = withLock(gLock): result = gVariant
+proc getServerVersion*(): string= withLock(gLock): result = gServerVersion
+proc isRunning*(): bool         = withLock(gLock): result = gRunning
+proc isDroid*(): bool           = withLock(gLock): result = gState.isDroid
+proc isDisabled*(): bool        = getEnergy() == 0.0
+proc isStopped*(): bool         = gStopped
+proc getBulletStates*(): seq[BulletState] = withLock(gLock): result = gBullets
+proc getTeammateIds*(): seq[int]= withLock(gLock): result = gTeammateIds
+proc isTeammate*(botId: int): bool =
+  withLock(gLock): result = gTeammateIds.contains(botId)
+
+proc getDistanceRemaining*(): float  = gDistanceRemaining
+proc getTurnRemaining*(): float      = gTurnRemaining
+proc getGunTurnRemaining*(): float   = gGunTurnRemaining
+proc getRadarTurnRemaining*(): float = gRadarTurnRemaining
+
+proc getMaxSpeed*(): float       = gMaxSpeed
+proc getMaxTurnRate*(): float    = gMaxTurnRate
+proc getMaxGunTurnRate*(): float = gMaxGunTurnRate
+proc getMaxRadarTurnRate*(): float = gMaxRadarTurnRate
+
+proc setMaxSpeed*(v: float)       = gMaxSpeed        = v.clamp(0, MAX_SPEED)
+proc setMaxTurnRate*(v: float)    = gMaxTurnRate      = v.clamp(0, MAX_TURN_RATE)
+proc setMaxGunTurnRate*(v: float) = gMaxGunTurnRate   = v.clamp(0, MAX_GUN_TURN_RATE)
+proc setMaxRadarTurnRate*(v: float)= gMaxRadarTurnRate = v.clamp(0, MAX_RADAR_TURN_RATE)
+
+# ---------------------------------------------------------------------------
+# Intent building
+# ---------------------------------------------------------------------------
+
+# Intent fields (bot thread writes, main thread reads + clears)
+var gIntentTurnRate*:      float = 0.0
+var gIntentGunTurnRate*:   float = 0.0
+var gIntentRadarTurnRate*: float = 0.0
+var gIntentTargetSpeed*:   float = 0.0
+var gIntentFirepower*:     float = 0.0
+var gIntentRescan*:        bool  = false
+var gIntentFireAssist*:    bool  = false
+var gIntentBodyColor*:     string = ""
+var gIntentTurretColor*:   string = ""
+var gIntentRadarColor*:    string = ""
+var gIntentBulletColor*:   string = ""
+var gIntentScanColor*:     string = ""
+var gIntentTracksColor*:   string = ""
+var gIntentGunColor*:      string = ""
+var gIntentAdjGunBody*:    bool = false
+var gIntentAdjRadarBody*:  bool = false
+var gIntentAdjRadarGun*:   bool = false
+var gIntentTeamMessages*:  seq[TeamMessage] = @[]
+
+var gIntentFresh = false  # set to true once first turn
+
+proc buildIntentJson*(): string =
+  ## Serialise current intent to JSON for sending to server.
+  var obj = newJObject()
+  obj["type"] = %"BotIntent"
+  obj["turnRate"]      = %gIntentTurnRate
+  obj["gunTurnRate"]   = %gIntentGunTurnRate
+  obj["radarTurnRate"] = %gIntentRadarTurnRate
+  obj["targetSpeed"]   = %gIntentTargetSpeed
+  if gIntentFirepower > 0.0:
+    obj["firepower"] = %gIntentFirepower
+  if gIntentRescan:
+    obj["rescan"] = %true
+    gIntentRescan = false  # one-shot
+  if gIntentFireAssist:
+    obj["fireAssist"] = %true
+  if gIntentAdjGunBody:
+    obj["adjustGunForBodyTurn"] = %true
+  if gIntentAdjRadarBody:
+    obj["adjustRadarForBodyTurn"] = %true
+  if gIntentAdjRadarGun:
+    obj["adjustRadarForGunTurn"] = %true
+  if gIntentBodyColor.len > 0:
+    obj["bodyColor"]   = %gIntentBodyColor
+  if gIntentTurretColor.len > 0:
+    obj["turretColor"] = %gIntentTurretColor
+  if gIntentRadarColor.len > 0:
+    obj["radarColor"]  = %gIntentRadarColor
+  if gIntentBulletColor.len > 0:
+    obj["bulletColor"] = %gIntentBulletColor
+  if gIntentScanColor.len > 0:
+    obj["scanColor"]   = %gIntentScanColor
+  if gIntentTracksColor.len > 0:
+    obj["tracksColor"] = %gIntentTracksColor
+  if gIntentGunColor.len > 0:
+    obj["gunColor"]    = %gIntentGunColor
+  if gIntentTeamMessages.len > 0:
+    var msgs = newJArray()
+    for m in gIntentTeamMessages:
+      var mo = newJObject()
+      mo["message"]     = %m.message
+      mo["messageType"] = %m.messageType
+      if m.receiverId != 0:
+        mo["receiverId"] = %m.receiverId
+      msgs.add mo
+    obj["teamMessages"] = msgs
+    gIntentTeamMessages.setLen 0
+  result = $obj
+
+# ---------------------------------------------------------------------------
+# Intent setters (bot thread)
+# ---------------------------------------------------------------------------
+
+proc setTurnRate*(rate: float) =
+  gIntentTurnRate = rate.clamp(-gMaxTurnRate, gMaxTurnRate)
+  gOverrideTurnRate = false
+  gContinuousTurnRate = rate
+  gTurnRemaining = toInfiniteValue(rate)
+
+proc setGunTurnRate*(rate: float) =
+  gIntentGunTurnRate = rate.clamp(-gMaxGunTurnRate, gMaxGunTurnRate)
+  gOverrideGunTurnRate = false
+  gContinuousGunTurnRate = rate
+  gGunTurnRemaining = toInfiniteValue(rate)
+
+proc setRadarTurnRate*(rate: float) =
+  gIntentRadarTurnRate = rate.clamp(-gMaxRadarTurnRate, gMaxRadarTurnRate)
+  gOverrideRadarTurnRate = false
+  gContinuousRadarTurnRate = rate
+  gRadarTurnRemaining = toInfiniteValue(rate)
+
+proc setTargetSpeed*(speed: float) =
+  gIntentTargetSpeed = speed.clamp(-gMaxSpeed, gMaxSpeed)
+  gOverrideTargetSpeed = false
+  gContinuousTargetSpeed = speed
+  if speed > 0:
+    gDistanceRemaining = Inf
+  elif speed < 0:
+    gDistanceRemaining = NegInf
+  else:
+    gDistanceRemaining = 0.0
+
+proc setFire*(firepower: float): bool =
+  let fp = firepower.clamp(MIN_FIRE_POWER, MAX_FIRE_POWER)
+  if getEnergy() < fp or getGunHeat() > 0.0:
+    return false
+  gIntentFirepower = fp
+  return true
+
+proc setRescan*() = gIntentRescan = true
+
+proc setBodyColor*(color: string)   = gIntentBodyColor   = color
+proc setTurretColor*(color: string) = gIntentTurretColor = color
+proc setRadarColor*(color: string)  = gIntentRadarColor  = color
+proc setBulletColor*(color: string) = gIntentBulletColor = color
+proc setScanColor*(color: string)   = gIntentScanColor   = color
+proc setTracksColor*(color: string) = gIntentTracksColor = color
+proc setGunColor*(color: string)    = gIntentGunColor    = color
+
+proc setAdjustGunForBodyTurn*(v: bool)   = gIntentAdjGunBody   = v
+proc setAdjustRadarForBodyTurn*(v: bool) = gIntentAdjRadarBody = v
+proc setAdjustRadarForGunTurn*(v: bool)  = gIntentAdjRadarGun  = v
+
+# Convenience math re-exports
+proc calcBearing*(direction: float): float = calcDeltaAngle(direction, getDirection())
+proc calcGunBearing*(direction: float): float = calcDeltaAngle(direction, getGunDirection())
+proc calcRadarBearing*(direction: float): float = calcDeltaAngle(direction, getRadarDirection())
+proc bearingTo*(x, y: float): float = botutils.bearingTo(getX(), getY(), getDirection(), x, y)
+proc gunBearingTo*(x, y: float): float = botutils.bearingTo(getX(), getY(), getGunDirection(), x, y)
+proc directionTo*(x, y: float): float = botutils.directionTo(getX(), getY(), x, y)
+proc distanceTo*(x, y: float): float  = botutils.distanceTo(getX(), getY(), x, y)
+proc normalizeRelativeAngle*(a: float): float = botutils.normalizeRelativeAngle(a)
+proc normalizeAbsoluteAngle*(a: float): float = botutils.normalizeAbsoluteAngle(a)
+proc calcDeltaAngle*(a, b: float): float = botutils.calcDeltaAngle(a, b)
+proc calcBulletSpeed*(fp: float): float  = botutils.calcBulletSpeed(fp)
+proc calcGunHeat*(fp: float): float      = botutils.calcGunHeat(fp)
+
+# ---------------------------------------------------------------------------
+# Bot motion processing (called on first turn and each subsequent turn)
+# NOTE: must be defined before go() so it can be called inside go()
+# ---------------------------------------------------------------------------
+
+proc clearRemaining*() =
+  gDistanceRemaining  = 0.0
+  gTurnRemaining      = 0.0
+  gGunTurnRemaining   = 0.0
+  gRadarTurnRemaining = 0.0
+  gContinuousTurnRate     = 0.0
+  gContinuousGunTurnRate  = 0.0
+  gContinuousRadarTurnRate = 0.0
+  gContinuousTargetSpeed  = 0.0
+  gPreviousDirection      = getDirection()
+  gPreviousGunDirection   = getGunDirection()
+  gPreviousRadarDirection = getRadarDirection()
+
+proc updateTurnRemaining() =
+  let delta = calcDeltaAngle(getDirection(), gPreviousDirection)
+  gPreviousDirection = getDirection()
+  if not gOverrideTurnRate:
+    gIntentTurnRate = gContinuousTurnRate.clamp(-gMaxTurnRate, gMaxTurnRate)
+    return
+  if abs(gTurnRemaining) <= abs(delta):
+    gTurnRemaining = 0.0
+  else:
+    gTurnRemaining -= delta
+    if isNearZero(gTurnRemaining): gTurnRemaining = 0.0
+  gIntentTurnRate = gTurnRemaining.clamp(-gMaxTurnRate, gMaxTurnRate)
+
+proc updateGunTurnRemaining() =
+  let delta = calcDeltaAngle(getGunDirection(), gPreviousGunDirection)
+  gPreviousGunDirection = getGunDirection()
+  if not gOverrideGunTurnRate:
+    gIntentGunTurnRate = gContinuousGunTurnRate.clamp(-gMaxGunTurnRate, gMaxGunTurnRate)
+    return
+  if abs(gGunTurnRemaining) <= abs(delta):
+    gGunTurnRemaining = 0.0
+  else:
+    gGunTurnRemaining -= delta
+    if isNearZero(gGunTurnRemaining): gGunTurnRemaining = 0.0
+  gIntentGunTurnRate = gGunTurnRemaining.clamp(-gMaxGunTurnRate, gMaxGunTurnRate)
+
+proc updateRadarTurnRemaining() =
+  let delta = calcDeltaAngle(getRadarDirection(), gPreviousRadarDirection)
+  gPreviousRadarDirection = getRadarDirection()
+  if not gOverrideRadarTurnRate:
+    gIntentRadarTurnRate = gContinuousRadarTurnRate.clamp(-gMaxRadarTurnRate, gMaxRadarTurnRate)
+    return
+  if abs(gRadarTurnRemaining) <= abs(delta):
+    gRadarTurnRemaining = 0.0
+  else:
+    gRadarTurnRemaining -= delta
+    if isNearZero(gRadarTurnRemaining): gRadarTurnRemaining = 0.0
+  gIntentRadarTurnRate = gRadarTurnRemaining.clamp(-gMaxRadarTurnRate, gMaxRadarTurnRate)
+
+proc updateMovement() =
+  if not gOverrideTargetSpeed:
+    gIntentTargetSpeed = gContinuousTargetSpeed.clamp(-gMaxSpeed, gMaxSpeed)
+    if abs(gDistanceRemaining) < abs(getSpeed()):
+      gDistanceRemaining = 0.0
+    else:
+      gDistanceRemaining -= getSpeed()
+  elif gDistanceRemaining == Inf:
+    gIntentTargetSpeed = gMaxSpeed
+  elif gDistanceRemaining == NegInf:
+    gIntentTargetSpeed = -gMaxSpeed
+  else:
+    let dist     = gDistanceRemaining
+    let newSpeed = getNewTargetSpeed(gMaxSpeed, getSpeed(), dist)
+    gIntentTargetSpeed = newSpeed.clamp(-gMaxSpeed, gMaxSpeed)
+
+    if isNearZero(newSpeed) and gIsOverDriving:
+      gDistanceRemaining = 0.0
+      gIsOverDriving     = false
+    else:
+      if math.sgn(dist * newSpeed).float != -1.0:
+        gIsOverDriving = getDistanceTraveledUntilStop(gMaxSpeed, newSpeed) > abs(dist)
+      gDistanceRemaining = dist - newSpeed
+
+proc processTurn*() =
+  ## Update motion tracking at the start of each tick (called from go() and
+  ## botThreadEntry after each tick signal).
+  if isDisabled():
+    clearRemaining()
+  else:
+    updateTurnRemaining()
+    updateGunTurnRemaining()
+    updateRadarTurnRemaining()
+    updateMovement()
+
+# ---------------------------------------------------------------------------
+# Default event handlers (no-ops; override in your Bot subtype)
+# NOTE: must be defined before dispatchEvent() below
+# ---------------------------------------------------------------------------
+
+method run*(bot: Bot)               {.base.} = discard
+method onConnected*(bot: Bot)       {.base.} = discard
+method onDisconnected*(bot: Bot)    {.base.} = discard
+method onGameStarted*(bot: Bot, e: GameStartedEventForBot) {.base.} = discard
+method onGameEnded*(bot: Bot, e: GameEndedEventForBot)     {.base.} = discard
+method onGameAborted*(bot: Bot)     {.base.} = discard
+method onRoundStarted*(bot: Bot, e: RoundStartedEvent) {.base.} = discard
+method onRoundEnded*(bot: Bot, e: RoundEndedEventForBot) {.base.} = discard
+method onTick*(bot: Bot, e: TickEventForBot) {.base.} = discard
+method onSkippedTurn*(bot: Bot, e: SkippedTurnEvent) {.base.} = discard
+method onBotDeath*(bot: Bot, e: BotDeathEvent) {.base.} = discard
+method onBulletFired*(bot: Bot, e: BulletFiredEvent) {.base.} = discard
+method onBulletHit*(bot: Bot, e: BulletHitBotEvent) {.base.} = discard
+method onBulletHitBullet*(bot: Bot, e: BulletHitBulletEvent) {.base.} = discard
+method onBulletHitWall*(bot: Bot, e: BulletHitWallEvent) {.base.} = discard
+method onHitByBullet*(bot: Bot, e: HitByBulletEvent) {.base.} = discard
+method onHitBot*(bot: Bot, e: BotHitBotEvent) {.base.} = discard
+method onHitWall*(bot: Bot, e: BotHitWallEvent) {.base.} = discard
+method onScannedBot*(bot: Bot, e: ScannedBotEvent) {.base.} = discard
+method onWonRound*(bot: Bot, e: WonRoundEvent) {.base.} = discard
+method onTeamMessage*(bot: Bot, e: TeamMessageEvent) {.base.} = discard
+
+# ---------------------------------------------------------------------------
+# Event dispatch (called from bot thread)
+# NOTE: must be defined before go() below
+# ---------------------------------------------------------------------------
+
+proc dispatchEvent*(bot: Bot; node: JsonNode) =
+  ## Dispatch a single event node to the appropriate handler.
+  let kind = node{"type"}.getStr
+  case kind
+  of "BotDeathEvent":
+    bot.onBotDeath(node.to(BotDeathEvent))
+  of "BulletFiredEvent":
+    var e: BulletFiredEvent
+    e.`type`     = "BulletFiredEvent"
+    e.turnNumber = node{"turnNumber"}.getInt(0)
+    e.bullet     = parseBulletState(node{"bullet"})
+    bot.onBulletFired(e)
+    gIntentFirepower = 0.0  # reset firepower so we don't keep firing
+  of "BulletHitBotEvent":
+    var e: BulletHitBotEvent
+    e.`type`     = "BulletHitBotEvent"
+    e.turnNumber = node{"turnNumber"}.getInt(0)
+    e.victimId   = node{"victimId"}.getInt(0)
+    e.bullet     = parseBulletState(node{"bullet"})
+    e.damage     = node{"damage"}.getFloat(0.0)
+    e.energy     = node{"energy"}.getFloat(0.0)
+    if e.victimId == getMyId():
+      bot.onHitByBullet(HitByBulletEvent(`type`: "HitByBulletEvent",
+        turnNumber: e.turnNumber, bullet: e.bullet, damage: e.damage, energy: e.energy))
+    else:
+      bot.onBulletHit(e)
+  of "BulletHitBulletEvent":
+    var e: BulletHitBulletEvent
+    e.`type`     = "BulletHitBulletEvent"
+    e.turnNumber = node{"turnNumber"}.getInt(0)
+    e.bullet     = parseBulletState(node{"bullet"})
+    e.hitBullet  = parseBulletState(node{"hitBullet"})
+    bot.onBulletHitBullet(e)
+  of "BulletHitWallEvent":
+    var e: BulletHitWallEvent
+    e.`type`     = "BulletHitWallEvent"
+    e.turnNumber = node{"turnNumber"}.getInt(0)
+    e.bullet     = parseBulletState(node{"bullet"})
+    bot.onBulletHitWall(e)
+  of "BotHitBotEvent":
+    let e = node.to(BotHitBotEvent)
+    if e.rammed: gDistanceRemaining = 0.0
+    bot.onHitBot(e)
+  of "BotHitWallEvent":
+    gDistanceRemaining = 0.0
+    bot.onHitWall(node.to(BotHitWallEvent))
+  of "ScannedBotEvent":
+    bot.onScannedBot(node.to(ScannedBotEvent))
+  of "WonRoundEvent":
+    bot.onWonRound(node.to(WonRoundEvent))
+  of "TeamMessageEvent":
+    bot.onTeamMessage(node.to(TeamMessageEvent))
+  else:
+    discard
+
+proc dispatchPendingEvents*(bot: Bot) =
+  var pending: seq[JsonNode]
+  withLock(gLock): pending = gPendingEvents; gPendingEvents.setLen(0)
+  for node in pending:
+    try: bot.dispatchEvent(node)
+    except Exception as e:
+      stderr.writeLine "[bot] event dispatch error: " & e.msg
+
+# ---------------------------------------------------------------------------
+# go() — send intent and wait for next tick
+# ---------------------------------------------------------------------------
+
+proc go*() =
+  ## Send current intent to the server and block until the next tick arrives.
+  ## This is the fundamental time-step primitive — all blocking methods use it.
+  if not isRunning():
+    raise newException(CatchableError, "Bot is not running")
+  let json = buildIntentJson()
+  gIntentChan.send(json)       # tell main thread to send this
+  discard gTickChan.recv()     # block until next tick (or stop signal)
+  processTurn()                # update motion tracking based on new state
+  dispatchPendingEvents(gBot)  # fire event handlers for this tick
+
+# ---------------------------------------------------------------------------
+# Stop / Resume
+# ---------------------------------------------------------------------------
+
+proc stop*(overwrite: bool = false) =
+  if not gStopped or overwrite:
+    gStopped = true
+    gSavedTurnRate      = gIntentTurnRate
+    gSavedGunTurnRate   = gIntentGunTurnRate
+    gSavedRadarTurnRate = gIntentRadarTurnRate
+    gSavedTargetSpeed   = gIntentTargetSpeed
+    gIntentTurnRate     = 0.0
+    gIntentGunTurnRate  = 0.0
+    gIntentRadarTurnRate = 0.0
+    gIntentTargetSpeed  = 0.0
+
+proc resume*() =
+  if gStopped:
+    gIntentTurnRate     = gSavedTurnRate
+    gIntentGunTurnRate  = gSavedGunTurnRate
+    gIntentRadarTurnRate = gSavedRadarTurnRate
+    gIntentTargetSpeed  = gSavedTargetSpeed
+    gStopped = false
+
+# ---------------------------------------------------------------------------
+# Blocking movement methods
+# ---------------------------------------------------------------------------
+
+proc setForward*(distance: float) =
+  gOverrideTargetSpeed = true
+  let speed = getNewTargetSpeed(gMaxSpeed, getSpeed(), distance)
+  gIntentTargetSpeed = speed.clamp(-gMaxSpeed, gMaxSpeed)
+  gDistanceRemaining = distance
+
+proc setTurnLeft*(degrees: float) =
+  gOverrideTurnRate = true
+  gTurnRemaining    = degrees
+  gIntentTurnRate   = degrees.clamp(-gMaxTurnRate, gMaxTurnRate)
+
+proc setTurnRight*(degrees: float)     = setTurnLeft(-degrees)
+proc setBack*(distance: float)         = setForward(-distance)
+
+proc setTurnGunLeft*(degrees: float) =
+  gOverrideGunTurnRate = true
+  gGunTurnRemaining    = degrees
+  gIntentGunTurnRate   = degrees.clamp(-gMaxGunTurnRate, gMaxGunTurnRate)
+
+proc setTurnGunRight*(degrees: float)  = setTurnGunLeft(-degrees)
+
+proc setTurnRadarLeft*(degrees: float) =
+  gOverrideRadarTurnRate = true
+  gRadarTurnRemaining    = degrees
+  gIntentRadarTurnRate   = degrees.clamp(-gMaxRadarTurnRate, gMaxRadarTurnRate)
+
+proc setTurnRadarRight*(degrees: float) = setTurnRadarLeft(-degrees)
+
+proc forward*(distance: float) =
+  if gStopped:
+    go()
+  else:
+    setForward(distance)
+    while isRunning() and not (gDistanceRemaining == 0.0 and getSpeed() == 0.0):
+      go()
+
+proc back*(distance: float) = forward(-distance)
+
+proc turnLeft*(degrees: float) =
+  if gStopped:
+    go()
+  else:
+    setTurnLeft(degrees)
+    while isRunning() and gTurnRemaining != 0.0:
+      go()
+
+proc turnRight*(degrees: float) = turnLeft(-degrees)
+
+proc turnGunLeft*(degrees: float) =
+  if gStopped:
+    go()
+  else:
+    setTurnGunLeft(degrees)
+    while isRunning() and gGunTurnRemaining != 0.0:
+      go()
+
+proc turnGunRight*(degrees: float) = turnGunLeft(-degrees)
+
+proc turnRadarLeft*(degrees: float) =
+  if gStopped:
+    go()
+  else:
+    setTurnRadarLeft(degrees)
+    while isRunning() and gRadarTurnRemaining != 0.0:
+      go()
+
+proc turnRadarRight*(degrees: float) = turnRadarLeft(-degrees)
+
+proc fire*(firepower: float) =
+  discard setFire(firepower)
+  go()
+
+proc rescan*() =
+  setRescan()
+  go()
+
+proc waitFor*(condition: proc(): bool) =
+  while isRunning() and not condition():
+    go()
+
+# ---------------------------------------------------------------------------
+# Bot thread entry point
+# ---------------------------------------------------------------------------
+
+proc botThreadEntry() {.thread.} =
+  ## Runs `bot.run()` after waiting for the first tick.
+  {.cast(gcsafe).}:
+    # Wait for first tick signal from main thread
+    discard gTickChan.recv()
+
+    clearRemaining()
+    processTurn()
+    dispatchPendingEvents(gBot)  # dispatch events embedded in the first tick
+
+    try:
+      gBot.run()
+    except Exception as e:
+      stderr.writeLine "[bot] run() exception: " & e.msg
+
+    # After run() exits, keep calling go() to skip turns until game ends
+    while isRunning():
+      try: go()
+      except: break
+
+# ---------------------------------------------------------------------------
+# Exported initialiser (called from start() in tankroyale_botapi.nim)
+# ---------------------------------------------------------------------------
+
+proc initGlobals*() =
+  gTickChan.open(1)
+  gIntentChan.open(1)
+  initLock(gLock)
+  initLock(gIntentLock)
+
+proc setServerInfo*(variant, version: string) =
+  withLock(gLock):
+    gVariant       = variant
+    gServerVersion = version
+
+proc setGameStarted*(myId: int; setup: GameSetup; teammateIds: seq[int]) =
+  withLock(gLock):
+    gMyId        = myId
+    gGameSetup   = setup
+    gTeammateIds = teammateIds
+
+proc startRound*() =
+  withLock(gLock):
+    gRunning = true
+    gTurn    = 0
+
+proc setRunning*(v: bool) =
+  withLock(gLock): gRunning = v
+
+proc signalTick*(tick: TickEventForBot; events: seq[JsonNode]) =
+  ## Called from main thread when a new tick arrives.
+  ## Updates shared state and signals the bot thread.
+  withLock(gLock):
+    gTurn       = tick.turnNumber
+    gRound      = tick.roundNumber
+    gEnemyCount = tick.botState.enemyCount   # enemyCount lives in BotState
+    gState      = tick.botState
+    gBullets    = tick.bulletStates
+    gPendingEvents = events
+
+  gTickChan.send(true)   # wake up bot thread
+
+proc signalStop*() =
+  ## Unblock the bot thread when a round or the game ends.
+  ## Sends a dummy false to gTickChan so the bot wakes from go().
+  gTickChan.send(false)
+
+proc recvIntent*(): string =
+  ## Called by main thread after signalling a tick.
+  ## Blocks until the bot thread sends its intent JSON via go().
+  let (ok, json) = gIntentChan.tryRecv()
+  if ok: return json
+  return gIntentChan.recv()
+
+proc drainIntentChan*() =
+  ## Discard any pending intent (used when round/game ends).
+  discard gIntentChan.tryRecv()
+
+proc startBotThread*() =
+  createThread(gBotThread, botThreadEntry)
+
+proc waitForBotThread*() =
+  joinThread(gBotThread)
