@@ -63,3 +63,9 @@ node_modules/
 __pycache__/
 *.py[cod]
 *$py.class
+
+# OpenCode AI tool cache (npm deps for plugin — not project content)
+/.opencode/
+
+# Generated docs build output
+/docs-build/

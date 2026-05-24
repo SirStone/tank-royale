@@ -1,0 +1,15 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "nim": {
+      "type": "local",
+      "command": [
+        "devbox",
+        "run",
+        "nimlangserver",
+        "--mcp"
+      ],
+      "enabled": true
+    }
+  }
+}
