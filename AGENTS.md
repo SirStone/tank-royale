@@ -41,3 +41,17 @@ Reusable task instructions live in `.agents/skills/`. When the user runs a slash
 | `clue-extract` | Brownfield adoption (already executed here as CH-001) |
 | `/dot-scout [path]` · `/dot-prime [target]` · `/dot-audit [target]` | Principles system: discover, activate, audit |
 | `/release` · `/update-deps` · `/deploy-sample-bots [dir]` · `/structurizr` | Release, dependency, sample-bot, and diagram workflows |
+
+## Agent skills
+
+### Issue tracker
+
+GitHub Issues on `SirStone/tank-royale` via `gh` CLI. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Default five-label vocabulary. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context layout; ADRs in `docs/decisions/`. See `docs/agents/domain.md`.
