@@ -3,14 +3,17 @@
 ## Threading model
 ## ---------------
 ## Main thread:  WebSocket receive loop.  Receives all server messages,
-##               updates shared state, signals the bot thread.
-## Bot thread:   Runs user's `run()` method and event handlers.
+##               updates shared state, runs processTurn, then wakes bot thread.
+## Bot thread:   Wakes, dispatches events, runs user's `run()` / go() loop,
+##               sends intent JSON via gIntentChan.
+## Sender thread: Owns all WebSocket writes during gameplay — reads from
+##               gIntentChan and calls ws.send.
 ##
 ## Synchronisation uses two channels:
-##   tickChan     main → bot   (true = new tick/state ready; false = stop)
-##   intentChan   bot  → main  (JSON string to send to server)
+##   tickChan     main → bot      (true = new tick ready; false = stop)
+##   intentChan   bot  → sender   (JSON string to send to server; "" = stop)
 
-import std/[json, locks, math]
+import std/[json, locks, math, posix]
 import ./constants
 import ./schemas
 import ./utils as botutils
@@ -42,7 +45,9 @@ type
 var gWs*: SyncWebSocket
 
 # Thread handles
-var gBotThread: Thread[void]
+var gBotThread:    Thread[void]
+var gSenderThread: Thread[void]
+var gFirstTickOfRound: bool  # main-thread only, no lock needed
 
 # Channels  — must be opened before use
 var gTickChan:   Channel[bool]     # main → bot: tick arrived (false = stop)
@@ -289,34 +294,54 @@ proc setAdjustGunForBodyTurn*(v: bool)   = gIntentAdjGunBody   = v
 proc setAdjustRadarForBodyTurn*(v: bool) = gIntentAdjRadarBody = v
 proc setAdjustRadarForGunTurn*(v: bool)  = gIntentAdjRadarGun  = v
 
-# Convenience math re-exports
-proc calcBearing*(direction: float): float = calcDeltaAngle(direction, getDirection())
-proc calcGunBearing*(direction: float): float = calcDeltaAngle(direction, getGunDirection())
-proc calcRadarBearing*(direction: float): float = calcDeltaAngle(direction, getRadarDirection())
+# Convenience math re-exports (state-aware wrappers; pure-math helpers come from utils)
+proc calcBearing*(direction: float): float = botutils.calcDeltaAngle(direction, getDirection())
+proc calcGunBearing*(direction: float): float = botutils.calcDeltaAngle(direction, getGunDirection())
+proc calcRadarBearing*(direction: float): float = botutils.calcDeltaAngle(direction, getRadarDirection())
 proc bearingTo*(x, y: float): float = botutils.bearingTo(getX(), getY(), getDirection(), x, y)
 proc gunBearingTo*(x, y: float): float = botutils.bearingTo(getX(), getY(), getGunDirection(), x, y)
 proc directionTo*(x, y: float): float = botutils.directionTo(getX(), getY(), x, y)
 proc distanceTo*(x, y: float): float  = botutils.distanceTo(getX(), getY(), x, y)
-proc normalizeRelativeAngle*(a: float): float = botutils.normalizeRelativeAngle(a)
-proc normalizeAbsoluteAngle*(a: float): float = botutils.normalizeAbsoluteAngle(a)
-proc calcDeltaAngle*(a, b: float): float = botutils.calcDeltaAngle(a, b)
-proc calcBulletSpeed*(fp: float): float  = botutils.calcBulletSpeed(fp)
-proc calcGunHeat*(fp: float): float      = botutils.calcGunHeat(fp)
 
 # ---------------------------------------------------------------------------
 # Bot motion processing (called on first turn and each subsequent turn)
 # NOTE: must be defined before go() so it can be called inside go()
 # ---------------------------------------------------------------------------
 
+var gDebugLog: File   # nil in production
+
+proc debugLog(msg: string) =
+  if gDebugLog != nil:
+    gDebugLog.writeLine(msg)
+    gDebugLog.flushFile()
+
 proc clearRemaining*() =
   gDistanceRemaining  = 0.0
   gTurnRemaining      = 0.0
   gGunTurnRemaining   = 0.0
   gRadarTurnRemaining = 0.0
-  gContinuousTurnRate     = 0.0
-  gContinuousGunTurnRate  = 0.0
+  gContinuousTurnRate      = 0.0
+  gContinuousGunTurnRate   = 0.0
   gContinuousRadarTurnRate = 0.0
-  gContinuousTargetSpeed  = 0.0
+  gContinuousTargetSpeed   = 0.0
+  # Reset override flags — prevents stale state carrying across rounds
+  gOverrideTurnRate      = false
+  gOverrideGunTurnRate   = false
+  gOverrideRadarTurnRate = false
+  gOverrideTargetSpeed   = false
+  gIsOverDriving         = false
+  # Reset intent values to zero for a clean slate each round
+  gIntentTurnRate      = 0.0
+  gIntentGunTurnRate   = 0.0
+  gIntentRadarTurnRate = 0.0
+  gIntentTargetSpeed   = 0.0
+  # Reset stop/resume state — stale gStopped=true would hijack forward/turn calls
+  gStopped            = false
+  gSavedTurnRate      = 0.0
+  gSavedGunTurnRate   = 0.0
+  gSavedRadarTurnRate = 0.0
+  gSavedTargetSpeed   = 0.0
+  # Reset prevDir to current tick values — prevents wrong delta on first processTurn
   gPreviousDirection      = getDirection()
   gPreviousGunDirection   = getGunDirection()
   gPreviousRadarDirection = getRadarDirection()
@@ -500,9 +525,24 @@ proc go*() =
   if not isRunning():
     raise newException(CatchableError, "Bot is not running")
   let json = buildIntentJson()
-  gIntentChan.send(json)       # tell main thread to send this
-  discard gTickChan.recv()     # block until next tick (or stop signal)
-  processTurn()                # update motion tracking based on new state
+  debugLog("[GO-SEND] turn=" & $getTurn() &
+    " intentTR=" & $gIntentTurnRate &
+    " intentGTR=" & $gIntentGunTurnRate &
+    " intentSpd=" & $gIntentTargetSpeed &
+    " turnRem=" & $gTurnRemaining &
+    " gunTurnRem=" & $gGunTurnRemaining &
+    " distRem=" & $gDistanceRemaining &
+    " overTR=" & $gOverrideTurnRate &
+    " overGTR=" & $gOverrideGunTurnRate)
+  gIntentChan.send(json)       # sender thread will ws.send this
+  discard gTickChan.recv()     # block until main thread finishes processTurn + wake
+  debugLog("[GO-RECV] turn=" & $getTurn() &
+    " dir=" & $getDirection() &
+    " gunDir=" & $getGunDirection() &
+    " spd=" & $getSpeed() &
+    " prevDir=" & $gPreviousDirection &
+    " prevGunDir=" & $gPreviousGunDirection)
+  # processTurn already ran on main thread — just dispatch events
   dispatchPendingEvents(gBot)  # fire event handlers for this tick
 
 # ---------------------------------------------------------------------------
@@ -562,32 +602,38 @@ proc setTurnRadarLeft*(degrees: float) =
 proc setTurnRadarRight*(degrees: float) = setTurnRadarLeft(-degrees)
 
 proc forward*(distance: float) =
+  debugLog("[FORWARD] distance=" & $distance & " dir=" & $getDirection())
   if gStopped:
     go()
   else:
     setForward(distance)
     while isRunning() and not (gDistanceRemaining == 0.0 and getSpeed() == 0.0):
       go()
+  debugLog("[FORWARD-DONE] dir=" & $getDirection() & " distRem=" & $gDistanceRemaining)
 
 proc back*(distance: float) = forward(-distance)
 
 proc turnLeft*(degrees: float) =
+  debugLog("[TURNLEFT] degrees=" & $degrees & " dir=" & $getDirection() & " gunDir=" & $getGunDirection())
   if gStopped:
     go()
   else:
     setTurnLeft(degrees)
     while isRunning() and gTurnRemaining != 0.0:
       go()
+  debugLog("[TURNLEFT-DONE] dir=" & $getDirection() & " gunDir=" & $getGunDirection() & " turnRem=" & $gTurnRemaining)
 
 proc turnRight*(degrees: float) = turnLeft(-degrees)
 
 proc turnGunLeft*(degrees: float) =
+  debugLog("[GUNLEFT] degrees=" & $degrees & " gunDir=" & $getGunDirection())
   if gStopped:
     go()
   else:
     setTurnGunLeft(degrees)
     while isRunning() and gGunTurnRemaining != 0.0:
       go()
+  debugLog("[GUNLEFT-DONE] gunDir=" & $getGunDirection() & " gunTurnRem=" & $gGunTurnRemaining)
 
 proc turnGunRight*(degrees: float) = turnGunLeft(-degrees)
 
@@ -621,10 +667,14 @@ proc botThreadEntry() {.thread.} =
   ## Runs `bot.run()` after waiting for the first tick.
   {.cast(gcsafe).}:
     # Wait for first tick signal from main thread
+    # (clearRemaining + processTurn already ran on main thread)
     discard gTickChan.recv()
+    debugLog("[DBG] botThreadEntry: first tick" &
+      "  dir=" & $getDirection() &
+      "  gunDir=" & $getGunDirection() &
+      "  prevDir=" & $gPreviousDirection &
+      "  prevGunDir=" & $gPreviousGunDirection)
 
-    clearRemaining()
-    processTurn()
     dispatchPendingEvents(gBot)  # dispatch events embedded in the first tick
 
     try:
@@ -646,6 +696,8 @@ proc initGlobals*() =
   gIntentChan.open(1)
   initLock(gLock)
   initLock(gIntentLock)
+  gDebugLog = open("/tmp/walls_debug.log", fmAppend)
+  debugLog("=== PROCESS START pid=" & $getpid() & " ===")
 
 proc setServerInfo*(variant, version: string) =
   withLock(gLock):
@@ -657,18 +709,20 @@ proc setGameStarted*(myId: int; setup: GameSetup; teammateIds: seq[int]) =
     gMyId        = myId
     gGameSetup   = setup
     gTeammateIds = teammateIds
+  debugLog("=== GAME START myId=" & $myId & " ===")
 
 proc startRound*() =
   withLock(gLock):
     gRunning = true
     gTurn    = 0
+  gFirstTickOfRound = true
 
 proc setRunning*(v: bool) =
   withLock(gLock): gRunning = v
 
 proc signalTick*(tick: TickEventForBot; events: seq[JsonNode]) =
   ## Called from main thread when a new tick arrives.
-  ## Updates shared state and signals the bot thread.
+  ## Updates shared state only — caller must call processTickOnMainThread + wakeBotThread.
   withLock(gLock):
     gTurn       = tick.turnNumber
     gRound      = tick.roundNumber
@@ -677,7 +731,36 @@ proc signalTick*(tick: TickEventForBot; events: seq[JsonNode]) =
     gBullets    = tick.bulletStates
     gPendingEvents = events
 
-  gTickChan.send(true)   # wake up bot thread
+proc processTickOnMainThread*() =
+  ## Run motion tracking on the main thread while bot is blocked.
+  ## Must be called after signalTick and before wakeBotThread.
+  if gFirstTickOfRound:
+    clearRemaining()
+    gFirstTickOfRound = false
+  processTurn()
+
+proc wakeBotThread*() =
+  ## Wake the bot thread after state + motion tracking are ready.
+  gTickChan.send(true)
+
+proc senderThreadEntry() {.thread.} =
+  ## Sender thread: owns all WebSocket writes during gameplay.
+  {.cast(gcsafe).}:
+    while true:
+      let json = gIntentChan.recv()
+      if json.len == 0: break  # sentinel: stop
+      try:
+        gWs.send(json)
+      except Exception as e:
+        stderr.writeLine "[sender] send error: " & e.msg
+        break
+
+proc startSenderThread*() =
+  createThread(gSenderThread, senderThreadEntry)
+
+proc stopSenderThread*() =
+  gIntentChan.send("")  # sentinel
+  joinThread(gSenderThread)
 
 proc signalStop*() =
   ## Unblock the bot thread when a round or the game ends.
@@ -694,6 +777,15 @@ proc recvIntent*(): string =
 proc drainIntentChan*() =
   ## Discard any pending intent (used when round/game ends).
   discard gIntentChan.tryRecv()
+
+proc drainTickChan*() =
+  ## Discard any pending tick/stop signal left in gTickChan.
+  ## Needed when the bot thread exits via isRunning() check instead of
+  ## consuming the stop signal from go() — the false sits in the channel
+  ## and would be mistaken for the first real tick of the next round.
+  let (drained, val) = gTickChan.tryRecv()
+  if drained:
+    debugLog("[DBG] drainTickChan: drained signal=" & $val)
 
 proc startBotThread*() =
   createThread(gBotThread, botThreadEntry)

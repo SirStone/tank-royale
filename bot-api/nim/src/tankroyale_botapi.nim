@@ -120,11 +120,9 @@ proc handleTick(node: JsonNode) =
     for ev in node["events"]:
       events.add ev
 
-  signalTick(tick, events)
-
-  # Wait for bot thread to send its intent via go()
-  let intentJson = recvIntent()
-  gWs.send(intentJson)
+  signalTick(tick, events)          # update shared state
+  processTickOnMainThread()         # motion tracking (while bot is blocked)
+  wakeBotThread()                   # wake bot — state + motion ready
 
 proc runReceiveLoop*(ws: SyncWebSocket; info: BotInfo; secret: string) =
   ## Main WebSocket receive loop. Blocks until disconnected.
@@ -163,9 +161,10 @@ proc runReceiveLoop*(ws: SyncWebSocket; info: BotInfo; secret: string) =
     of "RoundEndedEventForBot":
       setRunning(false)
       let e = node.to(RoundEndedEventForBot)
-      drainIntentChan()
       signalStop()         # unblock bot thread blocked in go()
       waitForBotThread()
+      drainTickChan()      # drain stop signal if bot exited via isRunning() check
+      drainIntentChan()    # drain AFTER thread joined — no more writes possible
       gBot.onRoundEnded(e)
     of "GameEndedEventForBot":
       setRunning(false)
@@ -174,9 +173,10 @@ proc runReceiveLoop*(ws: SyncWebSocket; info: BotInfo; secret: string) =
       gBot.onGameEnded(e)
     of "GameAbortedEvent":
       setRunning(false)
-      drainIntentChan()
       signalStop()         # unblock bot thread (game aborted mid-round)
       waitForBotThread()
+      drainTickChan()      # drain stop signal if bot exited via isRunning() check
+      drainIntentChan()    # drain AFTER thread joined — no more writes possible
       gBot.onGameAborted()
     of "SkippedTurnEvent":
       let e = node.to(SkippedTurnEvent)
@@ -207,4 +207,6 @@ proc start*(bot: Bot; jsonFile: string = "") =
     quit(1)
 
   bot.onConnected()
+  startSenderThread()
   runReceiveLoop(gWs, gBotInfo, serverSecret)
+  stopSenderThread()
