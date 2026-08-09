@@ -69,3 +69,8 @@ __pycache__/
 
 # Generated docs build output
 /docs-build/
+
+# Nim compiled binaries — handled by bot-api/nim/sample_bots/.gitignore
+# Eclipse/IDE project files
+.project
+.settings/
