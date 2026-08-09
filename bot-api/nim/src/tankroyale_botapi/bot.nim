@@ -107,6 +107,8 @@ var gMaxRadarTurnRate = MAX_RADAR_TURN_RATE
 # The bot instance (set by start())
 var gBot*: Bot
 
+var gDispatching = false  # reentrancy guard for dispatchPendingEvents
+
 # BotInfo (set by start())
 var gBotInfo*: BotInfo
 
@@ -508,6 +510,9 @@ proc dispatchEvent*(bot: Bot; node: JsonNode) =
     discard
 
 proc dispatchPendingEvents*(bot: Bot) =
+  if gDispatching: return  # ponytail: reentrancy guard, priority-based preemption if Java parity needed
+  gDispatching = true
+  defer: gDispatching = false
   var pending: seq[JsonNode]
   withLock(gLock): pending = gPendingEvents; gPendingEvents.setLen(0)
   for node in pending:
