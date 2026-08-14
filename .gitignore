@@ -71,6 +71,7 @@ __pycache__/
 /docs-build/
 
 # Nim compiled binaries — handled by bot-api/nim/sample_bots/.gitignore
+.nimcache/
 # Eclipse/IDE project files
 .project
 .settings/
