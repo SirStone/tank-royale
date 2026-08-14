@@ -58,7 +58,6 @@ var gIntentChan: Channel[string]   # bot  → main: send this JSON
 # Shared state protected by lock
 var gLock: Lock
 var gRunning    {.guard: gLock.}: bool
-var gIsAlive    {.guard: gLock.}: bool   # bot is alive this round
 var gMyId       {.guard: gLock.}: int
 var gRound      {.guard: gLock.}: int
 var gTurn       {.guard: gLock.}: int
@@ -71,10 +70,6 @@ var gVariant    {.guard: gLock.}: string
 var gServerVersion {.guard: gLock.}: string
 # Pending events to dispatch in the bot thread after wakeup
 var gPendingEvents {.guard: gLock.}: seq[BotEvent]
-
-# Bot intent (written by bot thread, read/cleared by main thread)
-var gIntentLock: Lock
-var gIntent     {.guard: gIntentLock.}: JsonNode
 
 # Saved state for stop/resume
 var gStopped:            bool
@@ -202,8 +197,6 @@ var gIntentAdjRadarGun:   bool = false
 var gIntentTeamMessages:  seq[TeamMessage] = @[]
 var gIntentStdOut:        string = ""
 var gIntentStdErr:        string = ""
-
-var gIntentFresh = false  # set to true once first turn
 
 proc buildIntentJson*(): string =
   ## Serialise current intent to JSON for sending to server.
@@ -790,7 +783,6 @@ proc initGlobals*() =
   gTickChan.open(1)
   gIntentChan.open(1)
   initLock(gLock)
-  initLock(gIntentLock)
   gEventQueue = initEventQueue()
   gDebugLog = open("/tmp/walls_debug.log", fmAppend)
   debugLog("=== PROCESS START pid=" & $getpid() & " ===")
