@@ -83,6 +83,21 @@ type
     messageType*: string
     receiverId*:  int
 
+  # ---- Connection event types ------------------------------------------------
+
+  ConnectedEvent* = object
+    serverUrl*: string
+
+  DisconnectedEvent* = object
+    serverUrl*: string
+    remote*:    bool
+    statusCode*: int    ## 0 when not provided
+    reason*:    string
+
+  ConnectionErrorEvent* = object
+    serverUrl*: string
+    error*:     string
+
   # ---- Server → Bot messages -------------------------------------------------
 
   ServerHandshake* = object

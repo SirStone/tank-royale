@@ -129,7 +129,7 @@ proc handleTick(node: JsonNode) =
   processTickOnMainThread()         # motion tracking (while bot is blocked)
   wakeBotThread()                   # wake bot — state + motion ready
 
-proc runReceiveLoop*(ws: SyncWebSocket; info: BotInfo; secret: string) =
+proc runReceiveLoop*(ws: SyncWebSocket; info: BotInfo; secret: string; serverUrl: string) =
   ## Main WebSocket receive loop. Blocks until disconnected.
   while ws.connected:
     var msg: string
@@ -137,6 +137,7 @@ proc runReceiveLoop*(ws: SyncWebSocket; info: BotInfo; secret: string) =
       msg = ws.receive()
     except Exception as e:
       stderr.writeLine "[ws] receive error: " & e.msg
+      gBot.onConnectionError(ConnectionErrorEvent(serverUrl: serverUrl, error: e.msg))
       break
 
     if msg.len == 0:
@@ -189,7 +190,7 @@ proc runReceiveLoop*(ws: SyncWebSocket; info: BotInfo; secret: string) =
     else:
       discard  # unknown message type — ignore
 
-  gBot.onDisconnected()
+  gBot.onDisconnected(DisconnectedEvent(serverUrl: serverUrl))
 
 # ---------------------------------------------------------------------------
 # Public start() procedure
@@ -211,7 +212,7 @@ proc start*(bot: Bot; jsonFile: string = "") =
     stderr.writeLine "[start] Cannot connect to " & serverUrl & ": " & e.msg
     quit(1)
 
-  bot.onConnected()
+  bot.onConnected(ConnectedEvent(serverUrl: serverUrl))
   startSenderThread()
-  runReceiveLoop(gWs, gBotInfo, serverSecret)
+  runReceiveLoop(gWs, gBotInfo, serverSecret, serverUrl)
   stopSenderThread()

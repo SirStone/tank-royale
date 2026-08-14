@@ -450,8 +450,9 @@ proc processTurn*() =
 # ---------------------------------------------------------------------------
 
 method run*(bot: Bot)               {.base.} = discard
-method onConnected*(bot: Bot)       {.base.} = discard
-method onDisconnected*(bot: Bot)    {.base.} = discard
+method onConnected*(bot: Bot, e: ConnectedEvent)       {.base.} = discard
+method onDisconnected*(bot: Bot, e: DisconnectedEvent) {.base.} = discard
+method onConnectionError*(bot: Bot, e: ConnectionErrorEvent) {.base.} = discard
 method onGameStarted*(bot: Bot, e: GameStartedEventForBot) {.base.} = discard
 method onGameEnded*(bot: Bot, e: GameEndedEventForBot)     {.base.} = discard
 method onGameAborted*(bot: Bot)     {.base.} = discard
