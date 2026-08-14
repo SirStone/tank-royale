@@ -28,7 +28,7 @@ htmldocs/
 # Nimble generated files
 nimble.develop
 nimble.paths
-config.nims
+pkgs2/
 
 # Test results
 *.log

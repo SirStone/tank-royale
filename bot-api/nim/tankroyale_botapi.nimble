@@ -4,6 +4,7 @@ author        = "Davide Cappellini"
 description   = "Nim bot API for Robocode Tank Royale"
 license       = "Apache-2.0"
 srcDir        = "src"
+skipDirs      = @["sample_bots"]
 
 # Dependencies
 requires "nim >= 2.0.0"
