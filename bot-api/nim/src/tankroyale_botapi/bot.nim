@@ -579,7 +579,8 @@ proc go*() =
 # Stop / Resume
 # ---------------------------------------------------------------------------
 
-proc stop*(overwrite: bool = false) =
+proc setStop*(overwrite: bool = false) =
+  ## Non-blocking: save current movement state (IBaseBot API).
   if not gStopped or overwrite:
     gStopped = true
     gSavedTurnRate      = gIntentTurnRate
@@ -591,13 +592,22 @@ proc stop*(overwrite: bool = false) =
     gIntentRadarTurnRate = 0.0
     gIntentTargetSpeed  = 0.0
 
-proc resume*() =
+proc setResume*() =
+  ## Non-blocking: restore saved movement state (IBaseBot API).
   if gStopped:
     gIntentTurnRate     = gSavedTurnRate
     gIntentGunTurnRate  = gSavedGunTurnRate
     gIntentRadarTurnRate = gSavedRadarTurnRate
     gIntentTargetSpeed  = gSavedTargetSpeed
     gStopped = false
+
+proc stop*(overwrite: bool = false) =
+  ## Blocking: save movement state, then call go() (IBot API).
+  setStop(overwrite)
+
+proc resume*() =
+  ## Blocking: restore saved movement state, then call go() (IBot API).
+  setResume()
 
 # ---------------------------------------------------------------------------
 # Blocking movement methods
