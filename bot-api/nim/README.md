@@ -6,7 +6,7 @@ This is a continuation of the [My First Bot](https://robocode.dev/tutorial/my-fi
 
 Nim reads and writes a lot like Python, so it is a comfortable place to start even if you have never used a compiled language before. When you build your bot, Nim turns your code into a single standalone program — no Python interpreter, no Java runtime, no Node.js required on the machine that runs it, just one file that you can run directly. That is what makes it stand out from the other Tank Royale bot languages: Java, Python, .NET, and TypeScript bots all need their runtime installed wherever they run, while a Nim bot is entirely self-contained the moment it is compiled. You write friendly, readable code and get a lean, fast program out the other end — a pretty great deal.
 
-## 0. Install Nim and Nimble
+## Install Nim and Nimble
 
 The recommended way is [choosenim](https://github.com/dom96/choosenim) — Nim's version manager, which installs both Nim and Nimble in one shot.
 
@@ -27,11 +27,39 @@ nim --version
 nimble --version
 ```
 
-## 1. API Reference
+## Install the API and build
 
-Docs not yet published — see source in `src/`.
+Install the Nim bot API via [Nimble](https://github.com/nim-lang/nimble):
 
-## 2. Create a bot project
+```sh
+nimble install tankroyale_botapi
+```
+
+You should see `tankroyale_botapi` listed with its version:
+
+```sh
+nimble list --installed | grep tankroyale
+```
+
+Then build your bot (from inside the bot directory):
+
+```sh
+nimble build
+```
+
+This produces a native binary — `MyFirstBot` on Linux/macOS, `MyFirstBot.exe` on Windows.
+
+By default `nimble build` places the binary in the project root (the same directory as the `.nimble` file) — this is correct for the bot layout since the startup scripts reference `./MyFirstBot` in that same directory.
+
+To compile to a different output directory, add `binDir = "bin"` to the `.nimble` file and update the startup scripts accordingly (`exec "./bin/MyFirstBot"` on Linux/macOS, `bin\MyFirstBot.exe` on Windows).
+
+For an optimised release build:
+
+```sh
+nimble build -d:release
+```
+
+## Create a bot project
 
 - Create a directory for your bot, e.g. `~/bots/MyFirstBot/` — all files share this name
 - Register the directory in the Robocode GUI's **Bot Root Configuration**
@@ -48,7 +76,7 @@ requires "nim >= 2.0.0"
 requires "tankroyale_botapi >= 1.0.1"
 ```
 
-## 3. Create the JSON config file
+## Create the JSON config file
 
 `MyFirstBot.json` — required fields are `name`, `version`, `authors`:
 
@@ -66,7 +94,7 @@ requires "tankroyale_botapi >= 1.0.1"
 }
 ```
 
-## 4. Initial code — `MyFirstBot.nim`
+## Initial code — `MyFirstBot.nim`
 
 ```nim
 import std/os
@@ -77,7 +105,7 @@ const botJson = currentSourcePath().parentDir / "MyFirstBot.json"
 type MyFirstBot = ref object of Bot
 ```
 
-## 5. The `run` method
+## The `run` method
 
 ```nim
 method run(bot: MyFirstBot) =
@@ -88,7 +116,7 @@ method run(bot: MyFirstBot) =
     turnGunRight(360)
 ```
 
-## 6. Event handlers
+## Event handlers
 
 ```nim
 method onScannedBot(bot: MyFirstBot, e: ScannedBotEvent) =
@@ -99,7 +127,7 @@ method onHitByBullet(bot: MyFirstBot, e: HitByBulletEvent) =
   turnLeft(90 - bearing)
 ```
 
-## 7. The main entry point
+## The main entry point
 
 ```nim
 when isMainModule:
@@ -107,7 +135,7 @@ when isMainModule:
   start(bot, botJson)
 ```
 
-## 8. Putting it all together
+## Putting it all together
 
 Full combined listing:
 
@@ -138,33 +166,7 @@ when isMainModule:
   start(bot, botJson)
 ```
 
-## 9. Install the API and build
-
-Install the Nim bot API via [Nimble](https://github.com/nim-lang/nimble):
-
-```sh
-nimble install tankroyale_botapi
-```
-
-Then build your bot (from inside the bot directory):
-
-```sh
-nimble build
-```
-
-This produces a native binary — `MyFirstBot` on Linux/macOS, `MyFirstBot.exe` on Windows.
-
-By default `nimble build` places the binary in the project root (the same directory as the `.nimble` file) — this is correct for the bot layout since the startup scripts reference `./MyFirstBot` in that same directory.
-
-To compile to a different output directory, add `binDir = "bin"` to the `.nimble` file and update the startup scripts accordingly (`exec "./bin/MyFirstBot"` on Linux/macOS, `bin\MyFirstBot.exe` on Windows).
-
-For an optimised release build:
-
-```sh
-nimble build -d:release
-```
-
-## 10. Startup scripts
+## Startup scripts
 
 The Robocode booter launches bots via shell scripts. Create these two files:
 
@@ -186,7 +188,7 @@ cd /d "%~dp0"
 MyFirstBot.exe
 ```
 
-## 11. Packaging your bot
+## Packaging your bot
 
 Compile for your target platform, then zip the following files:
 
@@ -200,7 +202,7 @@ Compile for your target platform, then zip the following files:
 
 Upload the zip to share your bot.
 
-## 12. Bot Secrets
+## Bot Secrets
 
 If you're connecting to a server that requires authentication, set the `BOT_SECRETS` environment variable before launching:
 
@@ -221,3 +223,7 @@ set BOT_SECRETS=my-secret
 ```powershell
 $env:BOT_SECRETS = "my-secret"
 ```
+
+## API Reference
+
+Docs not yet published — see source in `src/`.
