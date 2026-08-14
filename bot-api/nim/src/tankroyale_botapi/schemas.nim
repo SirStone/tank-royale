@@ -1,6 +1,8 @@
 ## Schema types for Robocode Tank Royale protocol messages.
 ## These mirror the YAML schemas in schema/schemas/.
 
+import ./color
+
 type
   # ---- Shared / embedded types -----------------------------------------------
 
@@ -46,13 +48,13 @@ type
     radarTurnRate*:  float
     gunHeat*:        float
     enemyCount*:     int
-    bodyColor*:      string
-    turretColor*:    string
-    radarColor*:     string
-    bulletColor*:    string
-    scanColor*:      string
-    tracksColor*:    string
-    gunColor*:       string
+    bodyColor*:      Color
+    turretColor*:    Color
+    radarColor*:     Color
+    bulletColor*:    Color
+    scanColor*:      Color
+    tracksColor*:    Color
+    gunColor*:       Color
 
   BulletState* = object
     bulletId*:  int
@@ -61,7 +63,7 @@ type
     x*:         float
     y*:         float
     direction*: float
-    color*:     string
+    color*:     Color
 
   ResultsForBot* = object
     rank*:              int
@@ -245,13 +247,13 @@ type
     adjustRadarForGunTurn*:   bool
     rescan*:                  bool
     fireAssist*:              bool
-    bodyColor*:               string
-    turretColor*:             string
-    radarColor*:              string
-    bulletColor*:             string
-    scanColor*:               string
-    tracksColor*:             string
-    gunColor*:                string
+    bodyColor*:               Color
+    turretColor*:             Color
+    radarColor*:              Color
+    bulletColor*:             Color
+    scanColor*:               Color
+    tracksColor*:             Color
+    gunColor*:                Color
     stdOut*:                  string
     stdErr*:                  string
     teamMessages*:            seq[TeamMessage]

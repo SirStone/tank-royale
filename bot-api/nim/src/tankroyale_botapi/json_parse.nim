@@ -5,6 +5,7 @@
 
 import std/json
 import ./schemas
+import ./color
 
 proc parseBulletState*(node: JsonNode): BulletState =
   ## Parse a BulletState from JSON; missing optional fields default to zero.
@@ -15,7 +16,8 @@ proc parseBulletState*(node: JsonNode): BulletState =
   result.x         = node{"x"}.getFloat(0.0)
   result.y         = node{"y"}.getFloat(0.0)
   result.direction = node{"direction"}.getFloat(0.0)
-  result.color     = node{"color"}.getStr("")
+  let bulletColorStr = node{"color"}.getStr("")
+  result.color = if bulletColorStr.len > 0: fromHex(bulletColorStr) else: Color(0)
 
 proc parseBotState*(node: JsonNode): BotState =
   ## Parse a BotState from JSON; optional colour/flag fields default to empty/false.
@@ -34,10 +36,13 @@ proc parseBotState*(node: JsonNode): BotState =
   result.radarTurnRate  = node{"radarTurnRate"}.getFloat(0.0)
   result.gunHeat        = node{"gunHeat"}.getFloat(0.0)
   result.enemyCount     = node{"enemyCount"}.getInt(0)
-  result.bodyColor      = node{"bodyColor"}.getStr("")
-  result.turretColor    = node{"turretColor"}.getStr("")
-  result.radarColor     = node{"radarColor"}.getStr("")
-  result.bulletColor    = node{"bulletColor"}.getStr("")
-  result.scanColor      = node{"scanColor"}.getStr("")
-  result.tracksColor    = node{"tracksColor"}.getStr("")
-  result.gunColor       = node{"gunColor"}.getStr("")
+  template parseColor(field: untyped) =
+    let s = node{astToStr(field)}.getStr("")
+    result.field = if s.len > 0: fromHex(s) else: Color(0)
+  parseColor(bodyColor)
+  parseColor(turretColor)
+  parseColor(radarColor)
+  parseColor(bulletColor)
+  parseColor(scanColor)
+  parseColor(tracksColor)
+  parseColor(gunColor)

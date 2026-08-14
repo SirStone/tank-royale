@@ -14,6 +14,7 @@
 import std/[os, json]
 
 import ./tankroyale_botapi/constants
+import ./tankroyale_botapi/color
 import ./tankroyale_botapi/schemas
 import ./tankroyale_botapi/utils
 import ./tankroyale_botapi/bot_info
@@ -22,6 +23,7 @@ import ./tankroyale_botapi/json_parse
 import ./tankroyale_botapi/bot
 
 export constants
+export color
 export schemas
 export utils
 export bot_info

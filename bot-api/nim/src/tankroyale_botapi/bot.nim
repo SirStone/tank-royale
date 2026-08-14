@@ -16,6 +16,7 @@
 import std/[json, locks, math, posix]
 import ./constants
 import ./schemas
+import ./color
 import ./utils as botutils
 import ./ws_client
 import ./bot_info
@@ -133,13 +134,13 @@ proc getTurnRate*(): float      = withLock(gLock): result = gState.turnRate
 proc getGunTurnRate*(): float   = withLock(gLock): result = gState.gunTurnRate
 proc getRadarTurnRate*(): float = withLock(gLock): result = gState.radarTurnRate
 proc getGunHeat*(): float       = withLock(gLock): result = gState.gunHeat
-proc getBodyColor*(): string    = withLock(gLock): result = gState.bodyColor
-proc getTurretColor*(): string  = withLock(gLock): result = gState.turretColor
-proc getRadarColor*(): string   = withLock(gLock): result = gState.radarColor
-proc getBulletColor*(): string  = withLock(gLock): result = gState.bulletColor
-proc getScanColor*(): string    = withLock(gLock): result = gState.scanColor
-proc getTracksColor*(): string  = withLock(gLock): result = gState.tracksColor
-proc getGunColor*(): string     = withLock(gLock): result = gState.gunColor
+proc getBodyColor*(): Color    = withLock(gLock): result = gState.bodyColor
+proc getTurretColor*(): Color  = withLock(gLock): result = gState.turretColor
+proc getRadarColor*(): Color   = withLock(gLock): result = gState.radarColor
+proc getBulletColor*(): Color  = withLock(gLock): result = gState.bulletColor
+proc getScanColor*(): Color    = withLock(gLock): result = gState.scanColor
+proc getTracksColor*(): Color  = withLock(gLock): result = gState.tracksColor
+proc getGunColor*(): Color     = withLock(gLock): result = gState.gunColor
 proc getArenaWidth*(): int      = withLock(gLock): result = gGameSetup.arenaWidth
 proc getArenaHeight*(): int     = withLock(gLock): result = gGameSetup.arenaHeight
 proc getVariant*(): string      = withLock(gLock): result = gVariant
@@ -180,13 +181,13 @@ var gIntentTargetSpeed*:   float = 0.0
 var gIntentFirepower*:     float = 0.0
 var gIntentRescan*:        bool  = false
 var gIntentFireAssist*:    bool  = false
-var gIntentBodyColor*:     string = ""
-var gIntentTurretColor*:   string = ""
-var gIntentRadarColor*:    string = ""
-var gIntentBulletColor*:   string = ""
-var gIntentScanColor*:     string = ""
-var gIntentTracksColor*:   string = ""
-var gIntentGunColor*:      string = ""
+var gIntentBodyColor*:     Color = Color(0)
+var gIntentTurretColor*:   Color = Color(0)
+var gIntentRadarColor*:    Color = Color(0)
+var gIntentBulletColor*:   Color = Color(0)
+var gIntentScanColor*:     Color = Color(0)
+var gIntentTracksColor*:   Color = Color(0)
+var gIntentGunColor*:      Color = Color(0)
 var gIntentAdjGunBody*:    bool = false
 var gIntentAdjRadarBody*:  bool = false
 var gIntentAdjRadarGun*:   bool = false
@@ -215,20 +216,20 @@ proc buildIntentJson*(): string =
     obj["adjustRadarForBodyTurn"] = %true
   if gIntentAdjRadarGun:
     obj["adjustRadarForGunTurn"] = %true
-  if gIntentBodyColor.len > 0:
-    obj["bodyColor"]   = %gIntentBodyColor
-  if gIntentTurretColor.len > 0:
-    obj["turretColor"] = %gIntentTurretColor
-  if gIntentRadarColor.len > 0:
-    obj["radarColor"]  = %gIntentRadarColor
-  if gIntentBulletColor.len > 0:
-    obj["bulletColor"] = %gIntentBulletColor
-  if gIntentScanColor.len > 0:
-    obj["scanColor"]   = %gIntentScanColor
-  if gIntentTracksColor.len > 0:
-    obj["tracksColor"] = %gIntentTracksColor
-  if gIntentGunColor.len > 0:
-    obj["gunColor"]    = %gIntentGunColor
+  if gIntentBodyColor != Color(0):
+    obj["bodyColor"]   = %gIntentBodyColor.toHex
+  if gIntentTurretColor != Color(0):
+    obj["turretColor"] = %gIntentTurretColor.toHex
+  if gIntentRadarColor != Color(0):
+    obj["radarColor"]  = %gIntentRadarColor.toHex
+  if gIntentBulletColor != Color(0):
+    obj["bulletColor"] = %gIntentBulletColor.toHex
+  if gIntentScanColor != Color(0):
+    obj["scanColor"]   = %gIntentScanColor.toHex
+  if gIntentTracksColor != Color(0):
+    obj["tracksColor"] = %gIntentTracksColor.toHex
+  if gIntentGunColor != Color(0):
+    obj["gunColor"]    = %gIntentGunColor.toHex
   if gIntentTeamMessages.len > 0:
     var msgs = newJArray()
     for m in gIntentTeamMessages:
@@ -284,13 +285,13 @@ proc setFire*(firepower: float): bool =
 
 proc setRescan*() = gIntentRescan = true
 
-proc setBodyColor*(color: string)   = gIntentBodyColor   = color
-proc setTurretColor*(color: string) = gIntentTurretColor = color
-proc setRadarColor*(color: string)  = gIntentRadarColor  = color
-proc setBulletColor*(color: string) = gIntentBulletColor = color
-proc setScanColor*(color: string)   = gIntentScanColor   = color
-proc setTracksColor*(color: string) = gIntentTracksColor = color
-proc setGunColor*(color: string)    = gIntentGunColor    = color
+proc setBodyColor*(color: Color)   = gIntentBodyColor   = color
+proc setTurretColor*(color: Color) = gIntentTurretColor = color
+proc setRadarColor*(color: Color)  = gIntentRadarColor  = color
+proc setBulletColor*(color: Color) = gIntentBulletColor = color
+proc setScanColor*(color: Color)   = gIntentScanColor   = color
+proc setTracksColor*(color: Color) = gIntentTracksColor = color
+proc setGunColor*(color: Color)    = gIntentGunColor    = color
 
 proc setAdjustGunForBodyTurn*(v: bool)   = gIntentAdjGunBody   = v
 proc setAdjustRadarForBodyTurn*(v: bool) = gIntentAdjRadarBody = v
