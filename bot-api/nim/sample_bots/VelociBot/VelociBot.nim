@@ -37,7 +37,7 @@ method onHitByBullet(bot: VelociBot, e: HitByBulletEvent) =
 
 method onHitWall(bot: VelociBot, e: BotHitWallEvent) =
   # Move away from the wall by reversing the current target speed
-  setTargetSpeed(-1 * gIntentTargetSpeed)
+  setTargetSpeed(-1 * getTargetSpeed())
 
 when isMainModule:
   var bot = VelociBot()

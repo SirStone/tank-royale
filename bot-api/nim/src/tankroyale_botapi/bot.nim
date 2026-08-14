@@ -84,10 +84,10 @@ var gSavedRadarTurnRate: float
 var gSavedTargetSpeed:   float
 
 # Motion tracking (bot thread only)
-var gDistanceRemaining*:    float
-var gTurnRemaining*:        float
-var gGunTurnRemaining*:     float
-var gRadarTurnRemaining*:   float
+var gDistanceRemaining:    float
+var gTurnRemaining:        float
+var gGunTurnRemaining:     float
+var gRadarTurnRemaining:   float
 var gPreviousDirection:     float
 var gPreviousGunDirection:  float
 var gPreviousRadarDirection: float
@@ -110,7 +110,7 @@ var gMaxRadarTurnRate = MAX_RADAR_TURN_RATE
 var gBot*: Bot
 
 var gEventQueue: EventQueue   # bot-thread-only, no lock needed
-var gInterrupted*: bool       # flag-based interruptibility (checked by blocking calls)
+var gInterrupted: bool        # flag-based interruptibility (checked by blocking calls)
 
 # BotInfo (set by start())
 var gBotInfo*: BotInfo
@@ -182,26 +182,26 @@ proc setMaxRadarTurnRate*(v: float)= gMaxRadarTurnRate = v.clamp(0, MAX_RADAR_TU
 # ---------------------------------------------------------------------------
 
 # Intent fields (bot thread writes, main thread reads + clears)
-var gIntentTurnRate*:      float = 0.0
-var gIntentGunTurnRate*:   float = 0.0
-var gIntentRadarTurnRate*: float = 0.0
-var gIntentTargetSpeed*:   float = 0.0
-var gIntentFirepower*:     float = 0.0
-var gIntentRescan*:        bool  = false
-var gIntentFireAssist*:    bool  = false
-var gIntentBodyColor*:     Color = Color(0)
-var gIntentTurretColor*:   Color = Color(0)
-var gIntentRadarColor*:    Color = Color(0)
-var gIntentBulletColor*:   Color = Color(0)
-var gIntentScanColor*:     Color = Color(0)
-var gIntentTracksColor*:   Color = Color(0)
-var gIntentGunColor*:      Color = Color(0)
-var gIntentAdjGunBody*:    bool = false
-var gIntentAdjRadarBody*:  bool = false
-var gIntentAdjRadarGun*:   bool = false
-var gIntentTeamMessages*:  seq[TeamMessage] = @[]
-var gIntentStdOut*:        string = ""
-var gIntentStdErr*:        string = ""
+var gIntentTurnRate:      float = 0.0
+var gIntentGunTurnRate:   float = 0.0
+var gIntentRadarTurnRate: float = 0.0
+var gIntentTargetSpeed:   float = 0.0
+var gIntentFirepower:     float = 0.0
+var gIntentRescan:        bool  = false
+var gIntentFireAssist:    bool  = false
+var gIntentBodyColor:     Color = Color(0)
+var gIntentTurretColor:   Color = Color(0)
+var gIntentRadarColor:    Color = Color(0)
+var gIntentBulletColor:   Color = Color(0)
+var gIntentScanColor:     Color = Color(0)
+var gIntentTracksColor:   Color = Color(0)
+var gIntentGunColor:      Color = Color(0)
+var gIntentAdjGunBody:    bool = false
+var gIntentAdjRadarBody:  bool = false
+var gIntentAdjRadarGun:   bool = false
+var gIntentTeamMessages:  seq[TeamMessage] = @[]
+var gIntentStdOut:        string = ""
+var gIntentStdErr:        string = ""
 
 var gIntentFresh = false  # set to true once first turn
 
