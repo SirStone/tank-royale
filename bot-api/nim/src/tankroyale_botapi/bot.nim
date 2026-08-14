@@ -21,6 +21,7 @@ import ./utils as botutils
 import ./ws_client
 import ./bot_info
 import ./event_queue
+import ./graphics
 
 proc toInfiniteValue(rate: float): float {.inline.} =
   if rate > 0.0: Inf
@@ -256,6 +257,9 @@ proc buildIntentJson*(): string =
   if gIntentStdErr.len > 0:
     obj["stdErr"] = %gIntentStdErr
     gIntentStdErr = ""
+  let svg = svgOutput()
+  if svg.len > 0:
+    obj["debugGraphics"] = %svg
   result = $obj
 
 # ---------------------------------------------------------------------------
@@ -580,6 +584,7 @@ proc go*() =
     " distRem=" & $gDistanceRemaining &
     " overTR=" & $gOverrideTurnRate &
     " overGTR=" & $gOverrideGunTurnRate)
+  clearGraphics()              # reset SVG buffer and style state for next tick
   gIntentChan.send(json)       # sender thread will ws.send this
   discard gTickChan.recv()     # block until main thread finishes processTurn + wake
   debugLog("[GO-RECV] turn=" & $getTurn() &

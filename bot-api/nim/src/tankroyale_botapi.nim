@@ -22,6 +22,7 @@ import ./tankroyale_botapi/ws_client
 import ./tankroyale_botapi/json_parse
 import ./tankroyale_botapi/event_queue
 import ./tankroyale_botapi/bot
+import ./tankroyale_botapi/graphics
 
 export constants
 export color
@@ -31,6 +32,7 @@ export bot_info
 export json_parse
 export event_queue
 export bot
+export graphics
 
 # ---------------------------------------------------------------------------
 # WebSocket receive loop (main thread)

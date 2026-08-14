@@ -272,3 +272,4 @@ type
     stdOut*:                  string
     stdErr*:                  string
     teamMessages*:            seq[TeamMessage]
+    debugGraphics*:           string
