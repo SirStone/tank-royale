@@ -20,6 +20,7 @@ import ./tankroyale_botapi/utils
 import ./tankroyale_botapi/bot_info
 import ./tankroyale_botapi/ws_client
 import ./tankroyale_botapi/json_parse
+import ./tankroyale_botapi/event_queue
 import ./tankroyale_botapi/bot
 
 export constants
@@ -28,6 +29,7 @@ export schemas
 export utils
 export bot_info
 export json_parse
+export event_queue
 export bot
 
 # ---------------------------------------------------------------------------
@@ -114,13 +116,14 @@ proc handleTick(node: JsonNode) =
   if not node{"bulletStates"}.isNil and node["bulletStates"].kind == JArray:
     for bs in node["bulletStates"]:
       tick.bulletStates.add parseBulletState(bs)
-  tick.events = @[]  # not used; raw nodes passed via signalTick
+  tick.events = @[]  # sub-events parsed separately into typed BotEvent
 
-  # Collect embedded events as raw JsonNode for dispatch in bot thread
-  var events: seq[JsonNode] = @[]
+  # Parse embedded events into typed BotEvent for priority-based dispatch
+  var events: seq[BotEvent] = @[]
+  let myId = getMyId()
   if node.hasKey("events") and node["events"].kind == JArray:
     for ev in node["events"]:
-      events.add ev
+      events.add parseBotEvent(ev, myId)
 
   signalTick(tick, events)          # update shared state
   processTickOnMainThread()         # motion tracking (while bot is blocked)

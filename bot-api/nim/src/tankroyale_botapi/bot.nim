@@ -20,7 +20,7 @@ import ./color
 import ./utils as botutils
 import ./ws_client
 import ./bot_info
-import ./json_parse
+import ./event_queue
 
 proc toInfiniteValue(rate: float): float {.inline.} =
   if rate > 0.0: Inf
@@ -69,7 +69,7 @@ var gTeammateIds{.guard: gLock.}: seq[int]
 var gVariant    {.guard: gLock.}: string
 var gServerVersion {.guard: gLock.}: string
 # Pending events to dispatch in the bot thread after wakeup
-var gPendingEvents {.guard: gLock.}: seq[JsonNode]
+var gPendingEvents {.guard: gLock.}: seq[BotEvent]
 
 # Bot intent (written by bot thread, read/cleared by main thread)
 var gIntentLock: Lock
@@ -108,7 +108,8 @@ var gMaxRadarTurnRate = MAX_RADAR_TURN_RATE
 # The bot instance (set by start())
 var gBot*: Bot
 
-var gDispatching = false  # reentrancy guard for dispatchPendingEvents
+var gEventQueue: EventQueue   # bot-thread-only, no lock needed
+var gInterrupted*: bool       # flag-based interruptibility (checked by blocking calls)
 
 # BotInfo (set by start())
 var gBotInfo*: BotInfo
@@ -348,6 +349,9 @@ proc clearRemaining*() =
   gPreviousDirection      = getDirection()
   gPreviousGunDirection   = getGunDirection()
   gPreviousRadarDirection = getRadarDirection()
+  # Reset event queue state for new round
+  gEventQueue.clear()
+  gInterrupted = false
 
 proc updateTurnRemaining() =
   let delta = calcDeltaAngle(getDirection(), gPreviousDirection)
@@ -449,77 +453,71 @@ method onHitWall*(bot: Bot, e: BotHitWallEvent) {.base.} = discard
 method onScannedBot*(bot: Bot, e: ScannedBotEvent) {.base.} = discard
 method onWonRound*(bot: Bot, e: WonRoundEvent) {.base.} = discard
 method onTeamMessage*(bot: Bot, e: TeamMessageEvent) {.base.} = discard
+method onDeath*(bot: Bot, e: BotDeathEvent)          {.base.} = discard
+method onCustomEvent*(bot: Bot, e: Condition)        {.base.} = discard
 
 # ---------------------------------------------------------------------------
 # Event dispatch (called from bot thread)
 # NOTE: must be defined before go() below
 # ---------------------------------------------------------------------------
 
-proc dispatchEvent*(bot: Bot; node: JsonNode) =
-  ## Dispatch a single event node to the appropriate handler.
-  let kind = node{"type"}.getStr
-  case kind
-  of "BotDeathEvent":
-    bot.onBotDeath(node.to(BotDeathEvent))
-  of "BulletFiredEvent":
-    var e: BulletFiredEvent
-    e.`type`     = "BulletFiredEvent"
-    e.turnNumber = node{"turnNumber"}.getInt(0)
-    e.bullet     = parseBulletState(node{"bullet"})
-    bot.onBulletFired(e)
-    gIntentFirepower = 0.0  # reset firepower so we don't keep firing
-  of "BulletHitBotEvent":
-    var e: BulletHitBotEvent
-    e.`type`     = "BulletHitBotEvent"
-    e.turnNumber = node{"turnNumber"}.getInt(0)
-    e.victimId   = node{"victimId"}.getInt(0)
-    e.bullet     = parseBulletState(node{"bullet"})
-    e.damage     = node{"damage"}.getFloat(0.0)
-    e.energy     = node{"energy"}.getFloat(0.0)
-    if e.victimId == getMyId():
-      bot.onHitByBullet(HitByBulletEvent(`type`: "HitByBulletEvent",
-        turnNumber: e.turnNumber, bullet: e.bullet, damage: e.damage, energy: e.energy))
-    else:
-      bot.onBulletHit(e)
-  of "BulletHitBulletEvent":
-    var e: BulletHitBulletEvent
-    e.`type`     = "BulletHitBulletEvent"
-    e.turnNumber = node{"turnNumber"}.getInt(0)
-    e.bullet     = parseBulletState(node{"bullet"})
-    e.hitBullet  = parseBulletState(node{"hitBullet"})
-    bot.onBulletHitBullet(e)
-  of "BulletHitWallEvent":
-    var e: BulletHitWallEvent
-    e.`type`     = "BulletHitWallEvent"
-    e.turnNumber = node{"turnNumber"}.getInt(0)
-    e.bullet     = parseBulletState(node{"bullet"})
-    bot.onBulletHitWall(e)
-  of "BotHitBotEvent":
-    let e = node.to(BotHitBotEvent)
-    if e.rammed: gDistanceRemaining = 0.0
-    bot.onHitBot(e)
-  of "BotHitWallEvent":
+proc dispatchSingleEvent(bot: Bot; e: BotEvent) =
+  ## Dispatch a typed BotEvent to the appropriate handler.
+  case e.kind
+  of ekTick:            bot.onTick(e.tick)
+  of ekSkippedTurn:     bot.onSkippedTurn(e.skippedTurn)
+  of ekBotDeath:        bot.onBotDeath(e.botDeath)
+  of ekDeath:           bot.onDeath(e.death)
+  of ekBulletFired:
+    bot.onBulletFired(e.bulletFired)
+    gIntentFirepower = 0.0
+  of ekBulletHitBot:    bot.onBulletHit(e.bulletHitBot)
+  of ekBulletHitBullet: bot.onBulletHitBullet(e.bulletHitBullet)
+  of ekBulletHitWall:   bot.onBulletHitWall(e.bulletHitWall)
+  of ekHitByBullet:     bot.onHitByBullet(e.hitByBullet)
+  of ekHitBot:
+    if e.hitBot.rammed: gDistanceRemaining = 0.0
+    bot.onHitBot(e.hitBot)
+  of ekHitWall:
     gDistanceRemaining = 0.0
-    bot.onHitWall(node.to(BotHitWallEvent))
-  of "ScannedBotEvent":
-    bot.onScannedBot(node.to(ScannedBotEvent))
-  of "WonRoundEvent":
-    bot.onWonRound(node.to(WonRoundEvent))
-  of "TeamMessageEvent":
-    bot.onTeamMessage(node.to(TeamMessageEvent))
-  else:
-    discard
+    bot.onHitWall(e.hitWall)
+  of ekScannedBot:      bot.onScannedBot(e.scannedBot)
+  of ekWonRound:        bot.onWonRound(e.wonRound)
+  of ekTeamMessage:     bot.onTeamMessage(e.teamMessage)
+  of ekCustom:          bot.onCustomEvent(e.condition)
 
 proc dispatchPendingEvents*(bot: Bot) =
-  if gDispatching: return  # ponytail: reentrancy guard, priority-based preemption if Java parity needed
-  gDispatching = true
-  defer: gDispatching = false
-  var pending: seq[JsonNode]
-  withLock(gLock): pending = gPendingEvents; gPendingEvents.setLen(0)
-  for node in pending:
-    try: bot.dispatchEvent(node)
-    except Exception as e:
-      stderr.writeLine "[bot] event dispatch error: " & e.msg
+  var pending: seq[BotEvent]
+  withLock(gLock):
+    pending = gPendingEvents
+    gPendingEvents.setLen(0)
+  for e in pending:
+    gEventQueue.addEvent(e)
+  let turnNumber = getTurn()
+  gEventQueue.addCustomEvents(turnNumber)
+  gEventQueue.removeOldEvents(turnNumber)
+  gEventQueue.sortEvents()
+  while gEventQueue.events.len > 0:
+    let e = gEventQueue.events[0]
+    let p = gEventQueue.getPriority(e.kind)
+    if p < gEventQueue.currentTopPriority:
+      break
+    if p == gEventQueue.currentTopPriority:
+      if gEventQueue.currentTopEventKind in gEventQueue.interruptible:
+        gEventQueue.setInterruptible(gEventQueue.currentTopEventKind, false)
+        gInterrupted = true
+      break
+    gEventQueue.events.delete(0)
+    let oldPriority = gEventQueue.currentTopPriority
+    let oldKind = gEventQueue.currentTopEventKind
+    gEventQueue.currentTopPriority = p
+    gEventQueue.currentTopEventKind = e.kind
+    try: dispatchSingleEvent(bot, e)
+    except Exception as ex:
+      stderr.writeLine "[bot] event dispatch error: " & ex.msg
+    gInterrupted = false
+    gEventQueue.currentTopPriority = oldPriority
+    gEventQueue.currentTopEventKind = oldKind
 
 # ---------------------------------------------------------------------------
 # go() — send intent and wait for next tick
@@ -613,7 +611,8 @@ proc forward*(distance: float) =
     go()
   else:
     setForward(distance)
-    while isRunning() and not (gDistanceRemaining == 0.0 and getSpeed() == 0.0):
+    while isRunning() and not gInterrupted and
+          not (gDistanceRemaining == 0.0 and getSpeed() == 0.0):
       go()
   debugLog("[FORWARD-DONE] dir=" & $getDirection() & " distRem=" & $gDistanceRemaining)
 
@@ -625,7 +624,7 @@ proc turnLeft*(degrees: float) =
     go()
   else:
     setTurnLeft(degrees)
-    while isRunning() and gTurnRemaining != 0.0:
+    while isRunning() and not gInterrupted and gTurnRemaining != 0.0:
       go()
   debugLog("[TURNLEFT-DONE] dir=" & $getDirection() & " gunDir=" & $getGunDirection() & " turnRem=" & $gTurnRemaining)
 
@@ -637,7 +636,7 @@ proc turnGunLeft*(degrees: float) =
     go()
   else:
     setTurnGunLeft(degrees)
-    while isRunning() and gGunTurnRemaining != 0.0:
+    while isRunning() and not gInterrupted and gGunTurnRemaining != 0.0:
       go()
   debugLog("[GUNLEFT-DONE] gunDir=" & $getGunDirection() & " gunTurnRem=" & $gGunTurnRemaining)
 
@@ -648,7 +647,7 @@ proc turnRadarLeft*(degrees: float) =
     go()
   else:
     setTurnRadarLeft(degrees)
-    while isRunning() and gRadarTurnRemaining != 0.0:
+    while isRunning() and not gInterrupted and gRadarTurnRemaining != 0.0:
       go()
 
 proc turnRadarRight*(degrees: float) = turnRadarLeft(-degrees)
@@ -664,6 +663,39 @@ proc rescan*() =
 proc waitFor*(condition: proc(): bool) =
   while isRunning() and not condition():
     go()
+
+# ---------------------------------------------------------------------------
+# Event queue public API
+# ---------------------------------------------------------------------------
+
+proc addCustomEvent*(name: string; test: proc(): bool) =
+  ## Register a custom event condition. Evaluated each tick; fires onCustomEvent when true.
+  gEventQueue.addCondition(Condition(name: name, test: test))
+
+proc removeCustomEvent*(name: string) =
+  ## Remove a custom event condition by name.
+  gEventQueue.removeConditionByName(name)
+
+proc setInterruptible*(v: bool) =
+  ## Mark the current event handler as interruptible by same-priority events.
+  if v: gEventQueue.interruptible.incl gEventQueue.currentTopEventKind
+  else: gEventQueue.interruptible.excl gEventQueue.currentTopEventKind
+
+proc getEventPriority*(kind: EventKind): int =
+  ## Get the dispatch priority for an event kind.
+  gEventQueue.getPriority(kind)
+
+proc setEventPriority*(kind: EventKind; p: int) =
+  ## Set the dispatch priority for an event kind.
+  gEventQueue.setPriority(kind, p)
+
+proc getEvents*(): seq[BotEvent] =
+  ## Get all events currently in the queue.
+  gEventQueue.getEvents()
+
+proc clearEvents*() =
+  ## Clear all events from the queue.
+  gEventQueue.clearEvents()
 
 # ---------------------------------------------------------------------------
 # Bot thread entry point
@@ -702,6 +734,7 @@ proc initGlobals*() =
   gIntentChan.open(1)
   initLock(gLock)
   initLock(gIntentLock)
+  gEventQueue = initEventQueue()
   gDebugLog = open("/tmp/walls_debug.log", fmAppend)
   debugLog("=== PROCESS START pid=" & $getpid() & " ===")
 
@@ -726,7 +759,7 @@ proc startRound*() =
 proc setRunning*(v: bool) =
   withLock(gLock): gRunning = v
 
-proc signalTick*(tick: TickEventForBot; events: seq[JsonNode]) =
+proc signalTick*(tick: TickEventForBot; events: seq[BotEvent]) =
   ## Called from main thread when a new tick arrives.
   ## Updates shared state only — caller must call processTickOnMainThread + wakeBotThread.
   withLock(gLock):
@@ -735,7 +768,9 @@ proc signalTick*(tick: TickEventForBot; events: seq[JsonNode]) =
     gEnemyCount = tick.botState.enemyCount   # enemyCount lives in BotState
     gState      = tick.botState
     gBullets    = tick.bulletStates
-    gPendingEvents = events
+    # Prepend tick event, then sub-events — queue sorts by priority
+    gPendingEvents = @[BotEvent(kind: ekTick, turnNumber: tick.turnNumber, tick: tick)]
+    gPendingEvents.add events
 
 proc processTickOnMainThread*() =
   ## Run motion tracking on the main thread while bot is blocked.

@@ -6,6 +6,7 @@
 import std/json
 import ./schemas
 import ./color
+import ./event_queue
 
 proc parseBulletState*(node: JsonNode): BulletState =
   ## Parse a BulletState from JSON; missing optional fields default to zero.
@@ -46,3 +47,60 @@ proc parseBotState*(node: JsonNode): BotState =
   parseColor(scanColor)
   parseColor(tracksColor)
   parseColor(gunColor)
+
+proc parseBotEvent*(node: JsonNode; myId: int): BotEvent =
+  ## Parse a JSON event node into a typed BotEvent.
+  let typeStr = node{"type"}.getStr
+  let tn = node{"turnNumber"}.getInt(0)
+  case typeStr
+  of "BotDeathEvent":
+    let victimId = node{"victimId"}.getInt(0)
+    if victimId == myId:
+      result = BotEvent(kind: ekDeath, turnNumber: tn,
+        death: BotDeathEvent(`type`: typeStr, turnNumber: tn, victimId: victimId))
+    else:
+      result = BotEvent(kind: ekBotDeath, turnNumber: tn,
+        botDeath: BotDeathEvent(`type`: typeStr, turnNumber: tn, victimId: victimId))
+  of "BulletFiredEvent":
+    result = BotEvent(kind: ekBulletFired, turnNumber: tn,
+      bulletFired: BulletFiredEvent(`type`: typeStr, turnNumber: tn,
+        bullet: parseBulletState(node{"bullet"})))
+  of "BulletHitBotEvent":
+    let victimId = node{"victimId"}.getInt(0)
+    let bullet = parseBulletState(node{"bullet"})
+    let damage = node{"damage"}.getFloat(0.0)
+    let energy = node{"energy"}.getFloat(0.0)
+    if victimId == myId:
+      result = BotEvent(kind: ekHitByBullet, turnNumber: tn,
+        hitByBullet: HitByBulletEvent(`type`: "HitByBulletEvent", turnNumber: tn,
+          bullet: bullet, damage: damage, energy: energy))
+    else:
+      result = BotEvent(kind: ekBulletHitBot, turnNumber: tn,
+        bulletHitBot: BulletHitBotEvent(`type`: typeStr, turnNumber: tn,
+          victimId: victimId, bullet: bullet, damage: damage, energy: energy))
+  of "BulletHitBulletEvent":
+    result = BotEvent(kind: ekBulletHitBullet, turnNumber: tn,
+      bulletHitBullet: BulletHitBulletEvent(`type`: typeStr, turnNumber: tn,
+        bullet: parseBulletState(node{"bullet"}),
+        hitBullet: parseBulletState(node{"hitBullet"})))
+  of "BulletHitWallEvent":
+    result = BotEvent(kind: ekBulletHitWall, turnNumber: tn,
+      bulletHitWall: BulletHitWallEvent(`type`: typeStr, turnNumber: tn,
+        bullet: parseBulletState(node{"bullet"})))
+  of "BotHitBotEvent":
+    result = BotEvent(kind: ekHitBot, turnNumber: tn,
+      hitBot: node.to(BotHitBotEvent))
+  of "BotHitWallEvent":
+    result = BotEvent(kind: ekHitWall, turnNumber: tn,
+      hitWall: node.to(BotHitWallEvent))
+  of "ScannedBotEvent":
+    result = BotEvent(kind: ekScannedBot, turnNumber: tn,
+      scannedBot: node.to(ScannedBotEvent))
+  of "WonRoundEvent":
+    result = BotEvent(kind: ekWonRound, turnNumber: tn,
+      wonRound: WonRoundEvent(`type`: typeStr, turnNumber: tn))
+  of "TeamMessageEvent":
+    result = BotEvent(kind: ekTeamMessage, turnNumber: tn,
+      teamMessage: node.to(TeamMessageEvent))
+  else:
+    discard
