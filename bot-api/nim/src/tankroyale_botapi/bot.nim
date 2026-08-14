@@ -144,6 +144,12 @@ proc getTracksColor*(): Color  = withLock(gLock): result = gState.tracksColor
 proc getGunColor*(): Color     = withLock(gLock): result = gState.gunColor
 proc getArenaWidth*(): int      = withLock(gLock): result = gGameSetup.arenaWidth
 proc getArenaHeight*(): int     = withLock(gLock): result = gGameSetup.arenaHeight
+proc getGameType*(): string     = withLock(gLock): result = gGameSetup.gameType
+proc getNumberOfRounds*(): int  = withLock(gLock): result = gGameSetup.numberOfRounds
+proc getGunCoolingRate*(): float= withLock(gLock): result = gGameSetup.gunCoolingRate
+proc getMaxInactivityTurns*(): int = withLock(gLock): result = gGameSetup.maxInactivityTurns
+proc getTurnTimeout*(): int     = withLock(gLock): result = gGameSetup.turnTimeout
+proc getTimeLeft*(): int        = getTurnTimeout() # ponytail: returns turnTimeout as ceiling; precise impl needs tick timestamp + elapsed tracking
 proc getVariant*(): string      = withLock(gLock): result = gVariant
 proc getServerVersion*(): string= withLock(gLock): result = gServerVersion
 proc isRunning*(): bool         = withLock(gLock): result = gRunning
@@ -296,7 +302,17 @@ proc setGunColor*(color: Color)    = gIntentGunColor    = color
 
 proc setAdjustGunForBodyTurn*(v: bool)   = gIntentAdjGunBody   = v
 proc setAdjustRadarForBodyTurn*(v: bool) = gIntentAdjRadarBody = v
-proc setAdjustRadarForGunTurn*(v: bool)  = gIntentAdjRadarGun  = v
+proc setFireAssist*(enable: bool) = gIntentFireAssist = enable
+proc setAdjustRadarForGunTurn*(v: bool)  =
+  gIntentAdjRadarGun = v
+  setFireAssist(not v)
+
+proc isAdjustGunForBodyTurn*(): bool    = gIntentAdjGunBody
+proc isAdjustRadarForBodyTurn*(): bool  = gIntentAdjRadarBody
+proc isAdjustRadarForGunTurn*(): bool   = gIntentAdjRadarGun
+
+proc getTargetSpeed*(): float = gIntentTargetSpeed
+proc getFirepower*(): float   = gIntentFirepower
 
 # Convenience math re-exports (state-aware wrappers; pure-math helpers come from utils)
 proc calcBearing*(direction: float): float = botutils.calcDeltaAngle(direction, getDirection())
@@ -304,6 +320,7 @@ proc calcGunBearing*(direction: float): float = botutils.calcDeltaAngle(directio
 proc calcRadarBearing*(direction: float): float = botutils.calcDeltaAngle(direction, getRadarDirection())
 proc bearingTo*(x, y: float): float = botutils.bearingTo(getX(), getY(), getDirection(), x, y)
 proc gunBearingTo*(x, y: float): float = botutils.bearingTo(getX(), getY(), getGunDirection(), x, y)
+proc radarBearingTo*(x, y: float): float = botutils.normalizeRelativeAngle(botutils.directionTo(getX(), getY(), x, y) - getRadarDirection())
 proc directionTo*(x, y: float): float = botutils.directionTo(getX(), getY(), x, y)
 proc distanceTo*(x, y: float): float  = botutils.distanceTo(getX(), getY(), x, y)
 
