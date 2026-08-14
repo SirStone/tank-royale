@@ -1,5 +1,6 @@
 # Nim compiled files
 nimcache/
+.nimcache/
 nimblecache/
 htmldocs/
 
