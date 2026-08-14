@@ -4,7 +4,7 @@ This is a continuation of the [My First Bot](https://robocode.dev/tutorial/my-fi
 
 ## Why Nim?
 
-Nim gives you Python-like syntax that compiles to a single native binary with no runtime, no JVM, no interpreter. Your bot runs at full CPU speed. Memory is managed automatically via ARC/ORC — no garbage-collector pauses mid-battle. One `nimble build` produces a self-contained executable you can drop on any machine and run. For competitive bots, that speed ceiling matters.
+Nim reads and writes a lot like Python, so it is a comfortable place to start even if you have never used a compiled language before. When you build your bot, Nim turns your code into a single standalone program — no Python interpreter, no Java runtime, no Node.js required on the machine that runs it, just one file that you can run directly. That is what makes it stand out from the other Tank Royale bot languages: Java, Python, .NET, and TypeScript bots all need their runtime installed wherever they run, while a Nim bot is entirely self-contained the moment it is compiled. You write friendly, readable code and get a lean, fast program out the other end — a pretty great deal.
 
 ## 0. Install Nim and Nimble
 
