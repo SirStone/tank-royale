@@ -300,6 +300,14 @@ proc setScanColor*(color: Color)   = gIntentScanColor   = color
 proc setTracksColor*(color: Color) = gIntentTracksColor = color
 proc setGunColor*(color: Color)    = gIntentGunColor    = color
 
+proc broadcastTeamMessage*(message: string) =
+  ## Send a message to all teammates this tick.
+  gIntentTeamMessages.add TeamMessage(message: message, messageType: "String")
+
+proc sendTeamMessage*(botId: int; message: string) =
+  ## Send a message to a specific teammate this tick.
+  gIntentTeamMessages.add TeamMessage(message: message, messageType: "String", receiverId: botId)
+
 proc setAdjustGunForBodyTurn*(v: bool)   = gIntentAdjGunBody   = v
 proc setAdjustRadarForBodyTurn*(v: bool) = gIntentAdjRadarBody = v
 proc setFireAssist*(enable: bool) = gIntentFireAssist = enable
