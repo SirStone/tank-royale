@@ -199,6 +199,8 @@ var gIntentAdjGunBody*:    bool = false
 var gIntentAdjRadarBody*:  bool = false
 var gIntentAdjRadarGun*:   bool = false
 var gIntentTeamMessages*:  seq[TeamMessage] = @[]
+var gIntentStdOut*:        string = ""
+var gIntentStdErr*:        string = ""
 
 var gIntentFresh = false  # set to true once first turn
 
@@ -248,6 +250,12 @@ proc buildIntentJson*(): string =
       msgs.add mo
     obj["teamMessages"] = msgs
     gIntentTeamMessages.setLen 0
+  if gIntentStdOut.len > 0:
+    obj["stdOut"] = %gIntentStdOut
+    gIntentStdOut = ""
+  if gIntentStdErr.len > 0:
+    obj["stdErr"] = %gIntentStdErr
+    gIntentStdErr = ""
   result = $obj
 
 # ---------------------------------------------------------------------------
@@ -299,6 +307,14 @@ proc setBulletColor*(color: Color) = gIntentBulletColor = color
 proc setScanColor*(color: Color)   = gIntentScanColor   = color
 proc setTracksColor*(color: Color) = gIntentTracksColor = color
 proc setGunColor*(color: Color)    = gIntentGunColor    = color
+
+proc printToStdOut*(s: string) =
+  ## Append s to this tick's stdOut payload (sent to server in BotIntent).
+  gIntentStdOut.add s
+
+proc printToStdErr*(s: string) =
+  ## Append s to this tick's stdErr payload (sent to server in BotIntent).
+  gIntentStdErr.add s
 
 proc broadcastTeamMessage*(message: string) =
   ## Send a message to all teammates this tick.

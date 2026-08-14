@@ -55,6 +55,13 @@ proc handleServerHandshake(ws: SyncWebSocket; node: JsonNode; info: BotInfo; sec
   h["programmingLang"]= %info.programmingLang
   if secret.len > 0:
     h["secret"] = %secret
+  let ip = info.initialPosition
+  if ip.x != 0.0 or ip.y != 0.0 or ip.direction != 0.0:
+    var ipObj = newJObject()
+    if ip.x != 0.0:         ipObj["x"]         = %ip.x
+    if ip.y != 0.0:         ipObj["y"]         = %ip.y
+    if ip.direction != 0.0: ipObj["direction"] = %ip.direction
+    h["initialPosition"] = ipObj
   ws.send($h)
 
 proc parseGameSetup(node: JsonNode): GameSetup =
