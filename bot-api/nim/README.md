@@ -2,6 +2,31 @@
 
 This is a continuation of the [My First Bot](https://robocode.dev/tutorial/my-first-bot.html) tutorial on robocode.dev. Nim bots compile to native binaries — no VM or interpreter required.
 
+## Why Nim?
+
+Nim gives you Python-like syntax that compiles to a single native binary with no runtime, no JVM, no interpreter. Your bot runs at full CPU speed. Memory is managed automatically via ARC/ORC — no garbage-collector pauses mid-battle. One `nimble build` produces a self-contained executable you can drop on any machine and run. For competitive bots, that speed ceiling matters.
+
+## 0. Install Nim and Nimble
+
+The recommended way is [choosenim](https://github.com/dom96/choosenim) — Nim's version manager, which installs both Nim and Nimble in one shot.
+
+**Linux/macOS:**
+
+```sh
+curl https://nim-lang.org/choosenim/init.sh -sSf | sh
+```
+
+**Windows:** download the choosenim installer from https://nim-lang.org/install_windows.html
+
+**Alternatives** (may not be the latest release): `brew install nim` (macOS), `apt install nim` (Debian/Ubuntu), `pacman -S nim` (Arch).
+
+Nimble is bundled with Nim — no separate install needed. Verify your install:
+
+```sh
+nim --version
+nimble --version
+```
+
 ## 1. API Reference
 
 Docs not yet published — see source in `src/`.
@@ -128,6 +153,16 @@ nimble build
 ```
 
 This produces a native binary — `MyFirstBot` on Linux/macOS, `MyFirstBot.exe` on Windows.
+
+By default `nimble build` places the binary in the project root (the same directory as the `.nimble` file) — this is correct for the bot layout since the startup scripts reference `./MyFirstBot` in that same directory.
+
+To compile to a different output directory, add `binDir = "bin"` to the `.nimble` file and update the startup scripts accordingly (`exec "./bin/MyFirstBot"` on Linux/macOS, `bin\MyFirstBot.exe` on Windows).
+
+For an optimised release build:
+
+```sh
+nimble build -d:release
+```
 
 ## 10. Startup scripts
 
