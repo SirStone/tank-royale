@@ -15,6 +15,7 @@ type
     platform*:       string
     programmingLang*: string
     initialPosition*: InitialPosition
+    isDroid*:         bool
 
 proc botInfoFromJson*(path: string): BotInfo =
   let data = parseJson(readFile(path))
@@ -35,6 +36,7 @@ proc botInfoFromJson*(path: string): BotInfo =
     result.initialPosition.x         = ip{"x"}.getFloat
     result.initialPosition.y         = ip{"y"}.getFloat
     result.initialPosition.direction = ip{"direction"}.getFloat
+  result.isDroid = data{"isDroid"}.getBool(false)
 
 proc botInfoFromEnv*(): BotInfo =
   ## Fall back to environment variables when no JSON file is given.
@@ -51,6 +53,7 @@ proc botInfoFromEnv*(): BotInfo =
   result.gameTypes = gtStr.split(',').mapIt(it.strip)
   result.platform      = getEnv("BOT_PLATFORM", "Nim " & NimVersion)
   result.programmingLang = getEnv("BOT_PROGRAMMING_LANG", "Nim")
+  result.isDroid = getEnv("BOT_IS_DROID", "false").toLowerAscii == "true"
 
 proc loadBotInfo*(jsonFile: string = ""): BotInfo =
   var resolved = ""

@@ -55,6 +55,7 @@ proc handleServerHandshake(ws: SyncWebSocket; node: JsonNode; info: BotInfo; sec
   h["gameTypes"]      = %info.gameTypes
   h["platform"]       = %info.platform
   h["programmingLang"]= %info.programmingLang
+  h["isDroid"]        = %info.isDroid
   if secret.len > 0:
     h["secret"] = %secret
   let ip = info.initialPosition
