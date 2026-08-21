@@ -115,6 +115,9 @@ proc handleGameStarted(ws: SyncWebSocket; node: JsonNode) =
   # Send BotReady
   ws.send("""{"type":"BotReady"}""")
 
+proc handleBotListUpdate(node: JsonNode) =
+  updateBotNames(node)
+
 proc handleTick(node: JsonNode) =
   # Build TickEventForBot manually to handle optional fields safely
   var tick: TickEventForBot
@@ -197,6 +200,8 @@ proc runReceiveLoop*(ws: SyncWebSocket; info: BotInfo; secret: string; serverUrl
     of "SkippedTurnEvent":
       let e = node.to(SkippedTurnEvent)
       gBot.onSkippedTurn(e)
+    of "BotListUpdate":
+      handleBotListUpdate(node)
     else:
       discard  # unknown message type — ignore
 

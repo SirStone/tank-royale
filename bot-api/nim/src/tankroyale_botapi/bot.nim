@@ -13,7 +13,7 @@
 ##   tickChan     main → bot      (true = new tick ready; false = stop)
 ##   intentChan   bot  → sender   (JSON string to send to server; "" = stop)
 
-import std/[json, locks, math, posix]
+import std/[json, locks, math, posix, tables]
 import ./constants
 import ./schemas
 import ./color
@@ -70,6 +70,7 @@ var gVariant    {.guard: gLock.}: string
 var gServerVersion {.guard: gLock.}: string
 # Pending events to dispatch in the bot thread after wakeup
 var gPendingEvents {.guard: gLock.}: seq[BotEvent]
+var gBotNames      {.guard: gLock.}: Table[int, string]
 
 # Saved state for stop/resume
 var gStopped:            bool
@@ -161,6 +162,28 @@ proc getDistanceRemaining*(): float  = gDistanceRemaining
 proc getTurnRemaining*(): float      = gTurnRemaining
 proc getGunTurnRemaining*(): float   = gGunTurnRemaining
 proc getRadarTurnRemaining*(): float = gRadarTurnRemaining
+
+proc getBotName*(id: int): string =
+  ## Lookup bot name by id from the last BotListUpdate. Returns "" if unknown.
+  withLock(gLock): result = gBotNames.getOrDefault(id, "")
+
+proc updateBotNames*(node: JsonNode) =
+  ## Update the id → name table from a BotListUpdate message (full replacement).
+  withLock(gLock):
+    gBotNames.clear()
+    if node.isNil: return
+    let botsNode = node{"bots"}
+    if botsNode.isNil or botsNode.kind != JArray: return
+    for b in botsNode:
+      let name = b{"name"}.getStr("")
+      if name.len == 0: continue
+      var id = -1
+      if not b{"id"}.isNil:
+        id = b{"id"}.getInt(-1)
+      if id == -1 and not b{"botId"}.isNil:
+        id = b{"botId"}.getInt(-1)
+      if id == -1: continue
+      gBotNames[id] = name
 
 proc getMaxSpeed*(): float       = gMaxSpeed
 proc getMaxTurnRate*(): float    = gMaxTurnRate
@@ -784,6 +807,8 @@ proc initGlobals*() =
   gIntentChan.open(1)
   initLock(gLock)
   gEventQueue = initEventQueue()
+  withLock(gLock):
+    gBotNames = initTable[int, string]()
   gDebugLog = open("/tmp/walls_debug.log", fmAppend)
   debugLog("=== PROCESS START pid=" & $getpid() & " ===")
 
