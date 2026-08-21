@@ -9,12 +9,28 @@ import ./color
 # Module-level state (single bot per process)
 # ---------------------------------------------------------------------------
 
-var gSvgBuffer:   string
+# ponytail: static char array + length instead of a heap string. A fresh bot
+# thread runs each round; a module-level string grown by thread N and cleared
+# ("") by thread N+1 free/reallocs a dead thread's allocator block ->
+# rawDealloc SIGSEGV (same crash class as the event queue seq; gdb-confirmed
+# in drawText mid-campaign). Static storage: no heap block crosses threads.
+const SVG_BUFFER_CAP = 16384
+
+var gSvgLen:       int
+var gSvgBuffer:    array[SVG_BUFFER_CAP, char]
 var gStrokeColor: Color = WHITE
 var gFillColor:   Color = WHITE
 var gStrokeWidth: float = 1.0
-var gFontFamily:  string = "Arial"
+var gFontFamily:  string = "Arial"  # never rebound at runtime (setFont unused)
 var gFontSize:    float = 12.0
+
+proc appendSvg(s: string) =
+  ## Append an SVG fragment, dropping anything past the static cap.
+  let room = SVG_BUFFER_CAP - gSvgLen
+  if room > 0:
+    let n = min(room, s.len)
+    for i in 0 ..< n: gSvgBuffer[gSvgLen + i] = s[i]
+    inc gSvgLen, n
 
 # ---------------------------------------------------------------------------
 # Internal helpers
@@ -26,12 +42,12 @@ proc svgAttrs(): string =
 
 proc svgOutput*(): string =
   ## Returns the SVG fragment for this tick, or "" if nothing was drawn.
-  if gSvgBuffer.len == 0: return ""
-  "<g>" & gSvgBuffer & "</g>"
+  if gSvgLen == 0: return ""
+  "<g>" & $gSvgBuffer[0 ..< gSvgLen] & "</g>"
 
 proc clearGraphics*() =
   ## Reset buffer and all style globals to defaults. Called after each tick.
-  gSvgBuffer   = ""
+  gSvgLen      = 0
   gStrokeColor = WHITE
   gFillColor   = WHITE
   gStrokeWidth = 1.0
@@ -54,26 +70,26 @@ proc setFont*(family: string; size: float) =
 # ---------------------------------------------------------------------------
 
 proc drawLine*(x1, y1, x2, y2: float) =
-  gSvgBuffer.add &"<line x1=\"{x1}\" y1=\"{y1}\" x2=\"{x2}\" y2=\"{y2}\" {svgAttrs()}/>"
+  appendSvg(&"<line x1=\"{x1}\" y1=\"{y1}\" x2=\"{x2}\" y2=\"{y2}\" {svgAttrs()}/>")
 
 proc drawRectangle*(x, y, w, h: float) =
   let attrs = &"stroke=\"{gStrokeColor.toHex}\" fill=\"none\" stroke-width=\"{gStrokeWidth}\""
-  gSvgBuffer.add &"<rect x=\"{x}\" y=\"{y}\" width=\"{w}\" height=\"{h}\" {attrs}/>"
+  appendSvg(&"<rect x=\"{x}\" y=\"{y}\" width=\"{w}\" height=\"{h}\" {attrs}/>")
 
 proc fillRectangle*(x, y, w, h: float) =
   let attrs = &"stroke=\"none\" fill=\"{gFillColor.toHex}\""
-  gSvgBuffer.add &"<rect x=\"{x}\" y=\"{y}\" width=\"{w}\" height=\"{h}\" {attrs}/>"
+  appendSvg(&"<rect x=\"{x}\" y=\"{y}\" width=\"{w}\" height=\"{h}\" {attrs}/>")
 
 proc drawCircle*(x, y, r: float) =
   let attrs = &"stroke=\"{gStrokeColor.toHex}\" fill=\"none\" stroke-width=\"{gStrokeWidth}\""
-  gSvgBuffer.add &"<circle cx=\"{x}\" cy=\"{y}\" r=\"{r}\" {attrs}/>"
+  appendSvg(&"<circle cx=\"{x}\" cy=\"{y}\" r=\"{r}\" {attrs}/>")
 
 proc fillCircle*(x, y, r: float) =
   let attrs = &"stroke=\"none\" fill=\"{gFillColor.toHex}\""
-  gSvgBuffer.add &"<circle cx=\"{x}\" cy=\"{y}\" r=\"{r}\" {attrs}/>"
+  appendSvg(&"<circle cx=\"{x}\" cy=\"{y}\" r=\"{r}\" {attrs}/>")
 
 proc drawText*(text: string; x, y: float) =
-  gSvgBuffer.add &"<text x=\"{x}\" y=\"{y}\" font-family=\"{gFontFamily}\" font-size=\"{gFontSize}\">{text}</text>"
+  appendSvg(&"<text x=\"{x}\" y=\"{y}\" font-family=\"{gFontFamily}\" font-size=\"{gFontSize}\">{text}</text>")
 
 proc drawPolygon*(points: seq[(float, float)]) =
   var pts = ""
@@ -81,7 +97,7 @@ proc drawPolygon*(points: seq[(float, float)]) =
     if pts.len > 0: pts.add ' '
     pts.add &"{px},{py}"
   let attrs = &"stroke=\"{gStrokeColor.toHex}\" fill=\"none\" stroke-width=\"{gStrokeWidth}\""
-  gSvgBuffer.add &"<polygon points=\"{pts}\" {attrs}/>"
+  appendSvg(&"<polygon points=\"{pts}\" {attrs}/>")
 
 proc fillPolygon*(points: seq[(float, float)]) =
   var pts = ""
@@ -89,4 +105,4 @@ proc fillPolygon*(points: seq[(float, float)]) =
     if pts.len > 0: pts.add ' '
     pts.add &"{px},{py}"
   let attrs = &"stroke=\"none\" fill=\"{gFillColor.toHex}\""
-  gSvgBuffer.add &"<polygon points=\"{pts}\" {attrs}/>"
+  appendSvg(&"<polygon points=\"{pts}\" {attrs}/>")

@@ -47,7 +47,13 @@ type
     of ekCustom:          condition*: Condition
 
   EventQueue* = object
-    events*:     seq[BotEvent]
+    # ponytail: fixed static storage instead of a seq. The queue outlives bot
+    # threads (a fresh thread runs each round), so a heap seq's backing array
+    # is realloc'd by a *different* dead thread's allocator mid-round ->
+    # rawDealloc SIGSEGV in addEvent (7 gdb-confirmed dumps). Static array:
+    # no heap block crosses threads, realloc can never happen.
+    events*:     array[MAX_QUEUE_SIZE, BotEvent]
+    eventsLen*:  int
     priorities:  Table[EventKind, int]   ## runtime-mutable overrides
     interruptible*: set[EventKind]
     currentTopEventKind*: EventKind
@@ -85,24 +91,39 @@ proc setPriority*(eq: var EventQueue; kind: EventKind; p: int) =
   eq.priorities[kind] = p
 
 proc addEvent*(eq: var EventQueue; e: BotEvent) =
-  if eq.events.len < MAX_QUEUE_SIZE:
-    eq.events.add e
+  if eq.eventsLen < MAX_QUEUE_SIZE:
+    eq.events[eq.eventsLen] = e
+    inc eq.eventsLen
 
 proc clear*(eq: var EventQueue) =
-  eq.events.setLen 0
+  for i in 0 ..< eq.eventsLen:
+    eq.events[i].reset  # destroy refcounted payloads before len drops to 0
+  eq.eventsLen = 0
   eq.currentTopPriority = MIN_VALUE
 
 proc clearEvents*(eq: var EventQueue) =
-  eq.events.setLen 0
+  clear(eq)
 
 proc removeOldEvents*(eq: var EventQueue; turnNumber: int) =
   var i = 0
-  while i < eq.events.len:
+  while i < eq.eventsLen:
     if eq.events[i].turnNumber < turnNumber - MAX_EVENTS_AGE and
        not eq.events[i].isCritical:
-      eq.events.del i
+      for j in i ..< eq.eventsLen - 1:
+        eq.events[j] = eq.events[j + 1]
+      dec eq.eventsLen
+      eq.events[eq.eventsLen].reset
     else:
       inc i
+
+proc popFirst*(eq: var EventQueue): BotEvent =
+  ## Remove and return the head element (replaces seq delete(0)).
+  if eq.eventsLen == 0: return
+  result = eq.events[0]
+  for i in 0 ..< eq.eventsLen - 1:
+    eq.events[i] = eq.events[i + 1]
+  dec eq.eventsLen
+  eq.events[eq.eventsLen].reset
 
 proc addCustomEvents*(eq: var EventQueue; turnNumber: int) =
   for c in eq.conditions:
@@ -114,15 +135,16 @@ proc addCustomEvents*(eq: var EventQueue; turnNumber: int) =
 proc sortEvents*(eq: var EventQueue) =
   # ponytail: copy priorities table for closure capture (cheap, overrides are rare)
   let prio = eq.priorities
-  eq.events.sort(proc(a, b: BotEvent): int =
-    let dc = b.isCritical.int - a.isCritical.int
-    if dc != 0: return dc
-    let dt = a.turnNumber - b.turnNumber
-    if dt != 0: return dt
-    let pa = prio.getOrDefault(a.kind, priorityOf(a.kind))
-    let pb = prio.getOrDefault(b.kind, priorityOf(b.kind))
-    pb - pa
-  )
+  if eq.eventsLen > 1:
+    eq.events.toOpenArray(0, eq.eventsLen - 1).sort(proc(a, b: BotEvent): int =
+      let dc = b.isCritical.int - a.isCritical.int
+      if dc != 0: return dc
+      let dt = a.turnNumber - b.turnNumber
+      if dt != 0: return dt
+      let pa = prio.getOrDefault(a.kind, priorityOf(a.kind))
+      let pb = prio.getOrDefault(b.kind, priorityOf(b.kind))
+      pb - pa
+    )
 
 proc setInterruptible*(eq: var EventQueue; kind: EventKind; v: bool) =
   if v: eq.interruptible.incl kind
@@ -141,4 +163,5 @@ proc removeConditionByName*(eq: var EventQueue; name: string) =
       return
 
 proc getEvents*(eq: EventQueue): seq[BotEvent] =
-  eq.events
+  for i in 0 ..< eq.eventsLen:
+    result.add eq.events[i]

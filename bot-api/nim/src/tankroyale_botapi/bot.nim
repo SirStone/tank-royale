@@ -13,7 +13,7 @@
 ##   tickChan     main → bot      (true = new tick ready; false = stop)
 ##   intentChan   bot  → sender   (JSON string to send to server; "" = stop)
 
-import std/[json, locks, math, posix, tables]
+import std/[json, locks, math, os, posix, syncio, tables]
 import ./constants
 import ./schemas
 import ./color
@@ -68,9 +68,13 @@ var gGameSetup  {.guard: gLock.}: GameSetup
 var gTeammateIds{.guard: gLock.}: seq[int]
 var gVariant    {.guard: gLock.}: string
 var gServerVersion {.guard: gLock.}: string
-# Pending events to dispatch in the bot thread after wakeup
-var gPendingEvents {.guard: gLock.}: seq[BotEvent]
 var gBotNames      {.guard: gLock.}: Table[int, string]
+# Events handed main -> bot thread. Channel move, NOT a locked shared seq:
+# the old locked seq[BotEvent] copied GC'd payloads (strings/teamMessages)
+# across threads on every tick -> refcount churn under ORC + --threads:on ->
+# heap freeList corruption + SIGSEGV inside prepareSeqAddUninit at tps=-1
+# (gdb-confirmed). Channels move ownership: zero cross-thread refcount traffic.
+var gEventChan: Channel[seq[BotEvent]]
 
 # Saved state for stop/resume
 var gStopped:            bool
@@ -217,9 +221,21 @@ var gIntentGunColor:      Color = Color(0)
 var gIntentAdjGunBody:    bool = false
 var gIntentAdjRadarBody:  bool = false
 var gIntentAdjRadarGun:   bool = false
-var gIntentTeamMessages:  seq[TeamMessage] = @[]
-var gIntentStdOut:        string = ""
-var gIntentStdErr:        string = ""
+# ponytail: static buffers instead of strings/seq. go()'s stop path returns
+# before buildIntentJson clears these, so a round's last tick can leave heap
+# blocks owned by the exiting bot thread -> the fresh next-round thread
+# reallocs a dead allocator block (rawDealloc SIGSEGV). Static storage:
+# no heap block crosses threads.
+const INTENT_STDOUT_CAP = 4096
+const INTENT_STDERR_CAP = 4096
+const INTENT_MSG_CAP    = 16
+
+var gIntentTeamMessages: array[INTENT_MSG_CAP, TeamMessage]
+var gIntentTeamMsgsLen:  int
+var gIntentStdOut:       array[INTENT_STDOUT_CAP, char]
+var gIntentStdOutLen:    int
+var gIntentStdErr:       array[INTENT_STDERR_CAP, char]
+var gIntentStdErrLen:    int
 
 proc buildIntentJson*(): string =
   ## Serialise current intent to JSON for sending to server.
@@ -256,9 +272,10 @@ proc buildIntentJson*(): string =
     obj["tracksColor"] = %gIntentTracksColor.toHex
   if gIntentGunColor != Color(0):
     obj["gunColor"]    = %gIntentGunColor.toHex
-  if gIntentTeamMessages.len > 0:
+  if gIntentTeamMsgsLen > 0:
     var msgs = newJArray()
-    for m in gIntentTeamMessages:
+    for i in 0 ..< gIntentTeamMsgsLen:
+      let m = gIntentTeamMessages[i]
       var mo = newJObject()
       mo["message"]     = %m.message
       mo["messageType"] = %m.messageType
@@ -266,13 +283,14 @@ proc buildIntentJson*(): string =
         mo["receiverId"] = %m.receiverId
       msgs.add mo
     obj["teamMessages"] = msgs
-    gIntentTeamMessages.setLen 0
-  if gIntentStdOut.len > 0:
-    obj["stdOut"] = %gIntentStdOut
-    gIntentStdOut = ""
-  if gIntentStdErr.len > 0:
-    obj["stdErr"] = %gIntentStdErr
-    gIntentStdErr = ""
+    for i in 0 ..< gIntentTeamMsgsLen: gIntentTeamMessages[i].reset
+    gIntentTeamMsgsLen = 0
+  if gIntentStdOutLen > 0:
+    obj["stdOut"] = %($gIntentStdOut[0 ..< gIntentStdOutLen])
+    gIntentStdOutLen = 0
+  if gIntentStdErrLen > 0:
+    obj["stdErr"] = %($gIntentStdErr[0 ..< gIntentStdErrLen])
+    gIntentStdErrLen = 0
   let svg = svgOutput()
   if svg.len > 0:
     obj["debugGraphics"] = %svg
@@ -330,19 +348,27 @@ proc setGunColor*(color: Color)    = gIntentGunColor    = color
 
 proc printToStdOut*(s: string) =
   ## Append s to this tick's stdOut payload (sent to server in BotIntent).
-  gIntentStdOut.add s
+  let n = min(s.len, INTENT_STDOUT_CAP - gIntentStdOutLen)
+  for i in 0 ..< n: gIntentStdOut[gIntentStdOutLen + i] = s[i]
+  inc gIntentStdOutLen, n
 
 proc printToStdErr*(s: string) =
   ## Append s to this tick's stdErr payload (sent to server in BotIntent).
-  gIntentStdErr.add s
+  let n = min(s.len, INTENT_STDERR_CAP - gIntentStdErrLen)
+  for i in 0 ..< n: gIntentStdErr[gIntentStdErrLen + i] = s[i]
+  inc gIntentStdErrLen, n
 
 proc broadcastTeamMessage*(message: string) =
   ## Send a message to all teammates this tick.
-  gIntentTeamMessages.add TeamMessage(message: message, messageType: "String")
+  if gIntentTeamMsgsLen < INTENT_MSG_CAP:
+    gIntentTeamMessages[gIntentTeamMsgsLen] = TeamMessage(message: message, messageType: "String")
+    inc gIntentTeamMsgsLen
 
 proc sendTeamMessage*(botId: int; message: string) =
   ## Send a message to a specific teammate this tick.
-  gIntentTeamMessages.add TeamMessage(message: message, messageType: "String", receiverId: botId)
+  if gIntentTeamMsgsLen < INTENT_MSG_CAP:
+    gIntentTeamMessages[gIntentTeamMsgsLen] = TeamMessage(message: message, messageType: "String", receiverId: botId)
+    inc gIntentTeamMsgsLen
 
 proc setAdjustGunForBodyTurn*(v: bool)   = gIntentAdjGunBody   = v
 proc setAdjustRadarForBodyTurn*(v: bool) = gIntentAdjRadarBody = v
@@ -373,12 +399,29 @@ proc distanceTo*(x, y: float): float  = botutils.distanceTo(getX(), getY(), x, y
 # NOTE: must be defined before go() so it can be called inside go()
 # ---------------------------------------------------------------------------
 
-var gDebugLog: File   # nil in production
+var gDebugLog: File        # nil unless PPOB_DEBUG_LOG=1 (debug-only knob)
+var gDebugLogBytes: int64  # written bytes since last truncation
+const gDebugLogCap = 100 * 1024 * 1024  # 100 MB ceiling
+const gDebugLogPath = "/tmp/walls_debug.log"
 
-proc debugLog(msg: string) =
-  if gDebugLog != nil:
+proc resetDebugLog() =
+  ## Truncate the debug log to zero (Nim's stdlib has no File truncate, so do
+  ## it by path via POSIX — the open fmAppend handle stays valid).
+  discard truncate(gDebugLogPath, 0)
+  gDebugLogBytes = 0
+
+proc debugLog*(msg: string) =
+  ## Debug tracing, only active when PPOB_DEBUG_LOG=1. Called from both the
+  ## main and bot threads, so writes are serialized under gLock (File writes
+  ## are not thread-safe); the log is truncated and restarted at the cap so a
+  ## long campaign can't grow a GB-scale file again.
+  if gDebugLog == nil: return
+  withLock(gLock):
+    if gDebugLogBytes >= gDebugLogCap:
+      resetDebugLog()
     gDebugLog.writeLine(msg)
     gDebugLog.flushFile()
+    gDebugLogBytes += int64(msg.len) + 1
 
 proc clearRemaining*() =
   gDistanceRemaining  = 0.0
@@ -550,16 +593,15 @@ proc dispatchSingleEvent(bot: Bot; e: BotEvent) =
 
 proc dispatchPendingEvents*(bot: Bot) =
   var pending: seq[BotEvent]
-  withLock(gLock):
-    pending = gPendingEvents
-    gPendingEvents.setLen(0)
+  let (hasEvents, evs) = gEventChan.tryRecv()  # non-blocking: stop signals carry no events
+  if hasEvents: pending = evs
   for e in pending:
     gEventQueue.addEvent(e)
   let turnNumber = getTurn()
   gEventQueue.addCustomEvents(turnNumber)
   gEventQueue.removeOldEvents(turnNumber)
   gEventQueue.sortEvents()
-  while gEventQueue.events.len > 0:
+  while gEventQueue.eventsLen > 0:
     let e = gEventQueue.events[0]
     let p = gEventQueue.getPriority(e.kind)
     if p < gEventQueue.currentTopPriority:
@@ -569,7 +611,7 @@ proc dispatchPendingEvents*(bot: Bot) =
         gEventQueue.setInterruptible(gEventQueue.currentTopEventKind, false)
         gInterrupted = true
       break
-    gEventQueue.events.delete(0)
+    discard gEventQueue.popFirst()
     let oldPriority = gEventQueue.currentTopPriority
     let oldKind = gEventQueue.currentTopEventKind
     gEventQueue.currentTopPriority = p
@@ -585,11 +627,21 @@ proc dispatchPendingEvents*(bot: Bot) =
 # go() — send intent and wait for next tick
 # ---------------------------------------------------------------------------
 
+var gDroppedIntents: int  # bot-thread only; rate-limits drop logging
+
 proc go*() =
   ## Send current intent to the server and block until the next tick arrives.
   ## This is the fundamental time-step primitive — all blocking methods use it.
   if not isRunning():
     raise newException(CatchableError, "Bot is not running")
+  # Stop-signal check BEFORE emitting an intent: a pending `false` means the
+  # round/game ended while we were computing. Consume it and bail without an
+  # intent so a stop is never treated as a tick (kills the duplicate-intent /
+  # duplicate-GO-RECV storm at round boundaries).
+  let (hasStop, stopVal) = gTickChan.tryRecv()
+  if hasStop and not stopVal:
+    debugLog("[GO-STOP] pending stop consumed — no intent emitted")
+    return
   let json = buildIntentJson()
   debugLog("[GO-SEND] turn=" & $getTurn() &
     " intentTR=" & $gIntentTurnRate &
@@ -601,8 +653,20 @@ proc go*() =
     " overTR=" & $gOverrideTurnRate &
     " overGTR=" & $gOverrideGunTurnRate)
   clearGraphics()              # reset SVG buffer and style state for next tick
-  gIntentChan.send(json)       # sender thread will ws.send this
-  discard gTickChan.recv()     # block until main thread finishes processTurn + wake
+  # ponytail: trySend, drop if the cap-1 channel is full — a stalled sender
+  # must never wedge the bot thread mid-round (corpse signature). Sender
+  # drains unconditionally (see senderThreadEntry); the drop is pure belt.
+  if not gIntentChan.trySend(json):
+    inc gDroppedIntents
+    if gDroppedIntents mod 100 == 1:
+      debugLog("[GO-DROP] intent chan full (sender stalled/dead) — dropped " &
+        $gDroppedIntents & " intents")
+  let gotTick = gTickChan.recv()  # block until main thread finishes processTurn + wake
+  if not gotTick:
+    # Stop signal: round/game ended while we were blocked. No tick dispatch,
+    # no further intent — the caller's isRunning() check exits the loop.
+    debugLog("[GO-STOP] stop consumed in recv — no dispatch")
+    return
   debugLog("[GO-RECV] turn=" & $getTurn() &
     " dir=" & $getDirection() &
     " gunDir=" & $getGunDirection() &
@@ -779,12 +843,25 @@ proc botThreadEntry() {.thread.} =
   {.cast(gcsafe).}:
     # Wait for first tick signal from main thread
     # (clearRemaining + processTurn already ran on main thread)
-    discard gTickChan.recv()
+    let firstTick = gTickChan.recv()
+    if not firstTick:
+      debugLog("[DBG] botThreadEntry: stop before first tick — exiting")
+      return
     debugLog("[DBG] botThreadEntry: first tick" &
       "  dir=" & $getDirection() &
       "  gunDir=" & $getGunDirection() &
       "  prevDir=" & $gPreviousDirection &
       "  prevGunDir=" & $gPreviousGunDirection)
+
+    # Reset graphics + intent buffers on the thread that owns them. go()'s
+    # stop path (round end) returns before buildIntentJson/clearGraphics, so
+    # the previous round's thread can leave content behind; resetting here
+    # keeps it from leaking into this round's first intent.
+    clearGraphics()
+    gIntentStdOutLen = 0
+    gIntentStdErrLen = 0
+    for i in 0 ..< gIntentTeamMsgsLen: gIntentTeamMessages[i].reset
+    gIntentTeamMsgsLen = 0
 
     dispatchPendingEvents(gBot)  # dispatch events embedded in the first tick
 
@@ -805,12 +882,19 @@ proc botThreadEntry() {.thread.} =
 proc initGlobals*() =
   gTickChan.open(1)
   gIntentChan.open(1)
+  gEventChan.open(8)
   initLock(gLock)
   gEventQueue = initEventQueue()
   withLock(gLock):
     gBotNames = initTable[int, string]()
-  gDebugLog = open("/tmp/walls_debug.log", fmAppend)
-  debugLog("=== PROCESS START pid=" & $getpid() & " ===")
+  # Debug log is opt-in: it is written every tick from two threads, so leaving
+  # it on by default is a disk hog and an I/O stall source. Enable with
+  # PPOB_DEBUG_LOG=1 to debug; starts fresh (truncated) each run.
+  if getEnv("PPOB_DEBUG_LOG", "") == "1":
+    gDebugLog = open(gDebugLogPath, fmAppend)
+    resetDebugLog()
+    gDebugLog.writeLine("=== PROCESS START pid=" & $getpid() & " ===")
+    gDebugLog.flushFile()
 
 proc setServerInfo*(variant, version: string) =
   withLock(gLock):
@@ -842,9 +926,13 @@ proc signalTick*(tick: TickEventForBot; events: seq[BotEvent]) =
     gEnemyCount = tick.botState.enemyCount   # enemyCount lives in BotState
     gState      = tick.botState
     gBullets    = tick.bulletStates
-    # Prepend tick event, then sub-events — queue sorts by priority
-    gPendingEvents = @[BotEvent(kind: ekTick, turnNumber: tick.turnNumber, tick: tick)]
-    gPendingEvents.add events
+  # Prepend tick event, then sub-events — queue sorts by priority.
+  # Moved through a Channel: ownership transfer, no cross-thread refcounts.
+  # Send happens-before wakeBotThread's tickChan signal, so the bot thread
+  # always finds its events waiting when it wakes.
+  var pending = @[BotEvent(kind: ekTick, turnNumber: tick.turnNumber, tick: tick)]
+  pending.add events
+  gEventChan.send(move(pending))
 
 proc processTickOnMainThread*() =
   ## Run motion tracking on the main thread while bot is blocked.
@@ -858,8 +946,13 @@ proc wakeBotThread*() =
   ## Wake the bot thread after state + motion tracking are ready.
   gTickChan.send(true)
 
+var gWsFailed = false  # set by sender thread when a ws.send dies
+
 proc senderThreadEntry() {.thread.} =
   ## Sender thread: owns all WebSocket writes during gameplay.
+  ## ponytail: never exits — keeps draining gIntentChan so the bot thread's
+  ## trySend never wedges. A dead socket just discards intents (the main
+  ## receive loop detects the broken connection and exits cleanly).
   {.cast(gcsafe).}:
     while true:
       let json = gIntentChan.recv()
@@ -867,8 +960,12 @@ proc senderThreadEntry() {.thread.} =
       try:
         gWs.send(json)
       except Exception as e:
-        stderr.writeLine "[sender] send error: " & e.msg
-        break
+        gWsFailed = true
+        stderr.writeLine "[sender] send error (keeping drain): " & e.msg
+        debugLog("[SENDER-ERR] " & e.msg)
+        # drain without blocking: bot's go() uses trySend, so the channel is
+        # either empty or has at most one fresh intent — the next recv takes it
+        continue
 
 proc startSenderThread*() =
   createThread(gSenderThread, senderThreadEntry)
@@ -880,7 +977,19 @@ proc stopSenderThread*() =
 proc signalStop*() =
   ## Unblock the bot thread when a round or the game ends.
   ## Sends a dummy false to gTickChan so the bot wakes from go().
+  ## gTickChan has capacity 1 and the server can deliver the final
+  ## TickEventForBot + RoundEndedEventForBot back-to-back, leaving the tick's
+  ## `true` unconsumed: the bot exits via `raise` on the isRunning() check in
+  ## the next go() instead of another recv(), so send(false) would block
+  ## forever and freeze the main receive loop (silent corpse). The main thread
+  ## is the only gTickChan sender, so draining right before the send cannot
+  ## race; [true,false] and [false] orderings both unblock cleanly.
+  debugLog("[SS-ENTER] tid=" & $getThreadId())
+  let (drained, val) = gTickChan.tryRecv()
+  debugLog("[SS-DRAIN] drained=" & $drained & " val=" & $val & " tid=" & $getThreadId())
   gTickChan.send(false)
+  debugLog("[SS-SENT] false tid=" & $getThreadId())
+  debugLog("[SS-EXIT] tid=" & $getThreadId())
 
 proc recvIntent*(): string =
   ## Called by main thread after signalling a tick.
@@ -901,6 +1010,14 @@ proc drainTickChan*() =
   let (drained, val) = gTickChan.tryRecv()
   if drained:
     debugLog("[DBG] drainTickChan: drained signal=" & $val)
+
+proc drainEventChan*() =
+  ## Discard any unconsumed tick events left in gEventChan (round/game end).
+  ## Called after the bot thread joined — no more recv's possible, so this
+  ## prevents stale previous-round events leaking into the next round.
+  while true:
+    let (hasEvents, _) = gEventChan.tryRecv()
+    if not hasEvents: break
 
 proc startBotThread*() =
   createThread(gBotThread, botThreadEntry)
